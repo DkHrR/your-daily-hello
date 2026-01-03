@@ -1,0 +1,250 @@
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap");
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Regular.woff') format('woff');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Bold.woff') format('woff');
+  font-weight: 700;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 250 89% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 180 65% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 14% 90%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 280 85% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 250 89% 60%;
+
+    --radius: 1rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 250 89% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 280 85% 65%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 250 89% 60%;
+
+    --chart-1: 250 89% 60%;
+    --chart-2: 180 65% 45%;
+    --chart-3: 280 85% 65%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 142 76% 36%;
+
+    --gradient-neuro: linear-gradient(135deg, hsl(250, 89%, 60%) 0%, hsl(280, 85%, 65%) 50%, hsl(180, 65%, 45%) 100%);
+    --gradient-calm: linear-gradient(180deg, hsl(45, 100%, 96%) 0%, hsl(45, 80%, 92%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(220, 20%, 97%) 0%, hsl(250, 30%, 95%) 100%);
+
+    --glow-primary: 0 0 40px hsl(250 89% 60% / 0.3);
+    --glow-accent: 0 0 40px hsl(280 85% 65% / 0.3);
+
+    --dyslexia-warm: 45 100% 96%;
+    --dyslexia-cream: 40 60% 94%;
+
+    --font-sans: 'Lato', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'EB Garamond', ui-serif, Georgia, serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+    --font-dyslexic: 'OpenDyslexic', sans-serif;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 220 20% 98%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 220 20% 98%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 220 20% 98%;
+
+    --primary: 250 89% 70%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 180 65% 55%;
+    --secondary-foreground: 222 47% 6%;
+
+    --muted: 222 30% 20%;
+    --muted-foreground: 220 14% 65%;
+
+    --accent: 280 85% 75%;
+    --accent-foreground: 222 47% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 222 47% 6%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 222 47% 6%;
+
+    --info: 199 89% 58%;
+    --info-foreground: 222 47% 6%;
+
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 250 89% 70%;
+
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 220 20% 98%;
+    --sidebar-primary: 250 89% 70%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 280 85% 75%;
+    --sidebar-accent-foreground: 222 47% 6%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 250 89% 70%;
+
+    --chart-1: 250 89% 70%;
+    --chart-2: 180 65% 55%;
+    --chart-3: 280 85% 75%;
+    --chart-4: 38 92% 60%;
+    --chart-5: 142 76% 46%;
+
+    --gradient-neuro: linear-gradient(135deg, hsl(250, 89%, 70%) 0%, hsl(280, 85%, 75%) 50%, hsl(180, 65%, 55%) 100%);
+    --gradient-calm: linear-gradient(180deg, hsl(45, 30%, 20%) 0%, hsl(45, 20%, 15%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(222, 47%, 6%) 0%, hsl(250, 30%, 10%) 100%);
+
+    --dyslexia-warm: 45 30% 20%;
+    --dyslexia-cream: 40 20% 18%;
+  }
+
+  .dyslexia-mode {
+    font-family: var(--font-dyslexic);
+    letter-spacing: 0.05em;
+    word-spacing: 0.1em;
+    line-height: 1.8;
+  }
+
+  .warm-background {
+    background-color: hsl(var(--dyslexia-warm));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .text-gradient-neuro {
+    background: var(--gradient-neuro);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-neuro {
+    background: var(--gradient-neuro);
+  }
+
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+
+  .glow-accent {
+    box-shadow: var(--glow-accent);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  .reading-ruler {
+    position: relative;
+  }
+
+  .reading-ruler::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2em;
+    background: hsl(var(--primary) / 0.1);
+    pointer-events: none;
+    border-radius: 0.25rem;
+  }
+
+  .syllable-highlight {
+    background: linear-gradient(90deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.2));
+    border-radius: 0.25rem;
+    padding: 0.1em 0.2em;
+  }
+
+  .focus-overlay {
+    position: relative;
+  }
+
+  .focus-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, 
+      hsl(var(--background) / 0.8) 0%, 
+      transparent 20%, 
+      transparent 80%, 
+      hsl(var(--background) / 0.8) 100%
+    );
+    pointer-events: none;
+  }
+}
