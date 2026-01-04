@@ -7,8 +7,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,10 +20,10 @@ import { TrendingUp, Calendar, User } from 'lucide-react';
 
 interface ProgressDataPoint {
   date: string;
-  dyslexiaIndex: number;
-  adhdIndex: number;
-  dysgraphiaIndex: number;
-  fluencyScore: number;
+  overallRisk: number;
+  readingFluency: number;
+  phonological: number;
+  visualProcessing: number;
 }
 
 interface StudentProgressChartProps {
@@ -48,14 +46,17 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
 
       const { data, error } = await supabase
         .from('students')
-        .select('id, name')
-        .eq('clinician_id', user.id)
-        .order('name');
+        .select('id, first_name, last_name')
+        .order('first_name');
 
       if (!error && data) {
-        setStudents(data);
-        if (!selectedStudent && data.length > 0) {
-          setSelectedStudent(data[0].id);
+        const formattedStudents = data.map(s => ({
+          id: s.id,
+          name: `${s.first_name} ${s.last_name}`
+        }));
+        setStudents(formattedStudents);
+        if (!selectedStudent && formattedStudents.length > 0) {
+          setSelectedStudent(formattedStudents[0].id);
         }
       }
     }
@@ -90,16 +91,30 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
           break;
       }
 
+      // Get assessments for this student, then their results
+      const { data: assessments, error: assessError } = await supabase
+        .from('assessments')
+        .select('id')
+        .eq('student_id', selectedStudent);
+
+      if (assessError || !assessments?.length) {
+        setProgressData([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const assessmentIds = assessments.map(a => a.id);
+      
       const { data, error } = await supabase
-        .from('diagnostic_results')
+        .from('assessment_results')
         .select(`
           created_at,
-          dyslexia_probability_index,
-          adhd_probability_index,
-          dysgraphia_probability_index,
-          voice_fluency_score
+          overall_risk_score,
+          reading_fluency_score,
+          phonological_awareness_score,
+          visual_processing_score
         `)
-        .eq('student_id', selectedStudent)
+        .in('assessment_id', assessmentIds)
         .gte('created_at', startDate.toISOString())
         .order('created_at', { ascending: true });
 
@@ -109,10 +124,10 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
             month: 'short',
             day: 'numeric'
           }),
-          dyslexiaIndex: (record.dyslexia_probability_index || 0) * 100,
-          adhdIndex: (record.adhd_probability_index || 0) * 100,
-          dysgraphiaIndex: (record.dysgraphia_probability_index || 0) * 100,
-          fluencyScore: record.voice_fluency_score || 0
+          overallRisk: record.overall_risk_score || 0,
+          readingFluency: record.reading_fluency_score || 0,
+          phonological: record.phonological_awareness_score || 0,
+          visualProcessing: record.visual_processing_score || 0,
         }));
         
         setProgressData(formattedData);
@@ -191,15 +206,15 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={progressData}>
                 <defs>
-                  <linearGradient id="dyslexiaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="overallGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="adhdGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="readingGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--warning))" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="hsl(var(--warning))" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="fluencyGradient" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="phonologicalGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
                   </linearGradient>
@@ -225,26 +240,26 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
                 <Legend />
                 <Area
                   type="monotone"
-                  dataKey="dyslexiaIndex"
-                  name="Dyslexia Risk"
+                  dataKey="overallRisk"
+                  name="Overall Risk"
                   stroke="hsl(var(--destructive))"
-                  fill="url(#dyslexiaGradient)"
+                  fill="url(#overallGradient)"
                   strokeWidth={2}
                 />
                 <Area
                   type="monotone"
-                  dataKey="adhdIndex"
-                  name="ADHD Risk"
+                  dataKey="readingFluency"
+                  name="Reading Fluency"
                   stroke="hsl(var(--warning))"
-                  fill="url(#adhdGradient)"
+                  fill="url(#readingGradient)"
                   strokeWidth={2}
                 />
                 <Area
                   type="monotone"
-                  dataKey="fluencyScore"
-                  name="Fluency Score"
+                  dataKey="phonological"
+                  name="Phonological"
                   stroke="hsl(var(--success))"
-                  fill="url(#fluencyGradient)"
+                  fill="url(#phonologicalGradient)"
                   strokeWidth={2}
                 />
               </AreaChart>
@@ -254,20 +269,20 @@ export function StudentProgressChart({ studentId, className }: StudentProgressCh
             <div className="grid grid-cols-3 gap-4 mt-6">
               {[
                 { 
-                  key: 'dyslexiaIndex' as const, 
-                  label: 'Dyslexia Risk', 
+                  key: 'overallRisk' as const, 
+                  label: 'Overall Risk', 
                   color: 'destructive',
                   goodDirection: 'down'
                 },
                 { 
-                  key: 'adhdIndex' as const, 
-                  label: 'ADHD Risk', 
+                  key: 'readingFluency' as const, 
+                  label: 'Reading Fluency', 
                   color: 'warning',
-                  goodDirection: 'down'
+                  goodDirection: 'up'
                 },
                 { 
-                  key: 'fluencyScore' as const, 
-                  label: 'Fluency', 
+                  key: 'phonological' as const, 
+                  label: 'Phonological', 
                   color: 'success',
                   goodDirection: 'up'
                 },

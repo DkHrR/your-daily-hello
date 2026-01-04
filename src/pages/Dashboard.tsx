@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const { students, stats, riskDistribution, isLoading, error } = useDashboardData();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'low' | 'moderate' | 'high'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -137,14 +137,14 @@ export default function DashboardPage() {
           >
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                {profile?.title === 'School (India K-12)' ? 'School' : 
-                 profile?.title === 'Pediatrician' ? 'Clinical' : 'Personal'}{' '}
+                {profile?.organization === 'School (India K-12)' ? 'School' : 
+                 profile?.organization === 'Pediatrician' ? 'Clinical' : 'Personal'}{' '}
                 <span className="text-gradient-neuro">Dashboard</span>
               </h1>
               <p className="text-muted-foreground">
-                {profile?.title === 'School (India K-12)' 
+                {profile?.organization === 'School (India K-12)' 
                   ? 'School-wide analytics and student risk profiles'
-                  : profile?.title === 'Pediatrician'
+                  : profile?.organization === 'Pediatrician'
                     ? 'Clinical patient assessments and diagnostic reports'
                     : 'Your assessment history and progress tracking'}
               </p>
@@ -373,14 +373,14 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Filter className="w-4 h-4 text-muted-foreground" />
-                        {(['all', 'low', 'moderate', 'high'] as const).map((filter) => (
+                        {(['all', 'low', 'medium', 'high'] as const).map((filter) => (
                           <Button
                             key={filter}
                             variant={selectedFilter === filter ? 'default' : 'ghost'}
                             size="sm"
                             onClick={() => setSelectedFilter(filter)}
                           >
-                            {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                            {filter === 'medium' ? 'Moderate' : filter.charAt(0).toUpperCase() + filter.slice(1)}
                           </Button>
                         ))}
                       </div>
@@ -427,7 +427,7 @@ export default function DashboardPage() {
                                       className={`h-full rounded-full ${
                                         student.risk === 'high' 
                                           ? 'bg-destructive' 
-                                          : student.risk === 'moderate'
+                                          : student.risk === 'medium'
                                             ? 'bg-warning'
                                             : 'bg-success'
                                       }`}

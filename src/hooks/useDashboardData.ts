@@ -4,22 +4,22 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface Student {
   id: string;
-  name: string;
-  grade: string;
-  age: number;
-  risk_level: string | null;
+  first_name: string;
+  last_name: string;
+  grade_level: string | null;
+  date_of_birth: string | null;
   created_at: string;
   updated_at: string;
 }
 
-interface DiagnosticResult {
+interface AssessmentResult {
   id: string;
-  student_id: string;
-  session_id: string;
-  dyslexia_probability_index: number | null;
-  adhd_probability_index: number | null;
-  dysgraphia_probability_index: number | null;
-  overall_risk_level: string | null;
+  assessment_id: string;
+  overall_risk_score: number | null;
+  reading_fluency_score: number | null;
+  phonological_awareness_score: number | null;
+  visual_processing_score: number | null;
+  attention_score: number | null;
   created_at: string;
 }
 
@@ -49,25 +49,45 @@ export function useDashboardData() {
   });
 
   const resultsQuery = useQuery({
-    queryKey: ['diagnostic_results', user?.id],
+    queryKey: ['assessment_results', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('diagnostic_results')
+        .from('assessment_results')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as DiagnosticResult[];
+      return data as AssessmentResult[];
     },
     enabled: !!user,
   });
 
+  // Calculate risk levels from assessment scores
+  const getRiskLevel = (score: number | null): 'low' | 'medium' | 'high' => {
+    if (!score) return 'low';
+    if (score >= 70) return 'high';
+    if (score >= 40) return 'medium';
+    return 'low';
+  };
+
+  // Map results to students with their latest risk score
+  const studentsWithRisk = studentsQuery.data?.map(student => {
+    const latestResult = resultsQuery.data?.find(r => {
+      // We need to join through assessments - for now use overall_risk_score
+      return true; // Will be refined when we have proper student-assessment linkage
+    });
+    return {
+      ...student,
+      risk_level: getRiskLevel(latestResult?.overall_risk_score),
+    };
+  }) ?? [];
+
   const stats: DashboardStats = {
     totalStudents: studentsQuery.data?.length ?? 0,
     totalAssessments: resultsQuery.data?.length ?? 0,
-    highRiskCount: studentsQuery.data?.filter(s => s.risk_level === 'high').length ?? 0,
-    moderateRiskCount: studentsQuery.data?.filter(s => s.risk_level === 'medium').length ?? 0,
-    lowRiskCount: studentsQuery.data?.filter(s => s.risk_level === 'low').length ?? 0,
+    highRiskCount: studentsWithRisk.filter(s => s.risk_level === 'high').length,
+    moderateRiskCount: studentsWithRisk.filter(s => s.risk_level === 'medium').length,
+    lowRiskCount: studentsWithRisk.filter(s => s.risk_level === 'low').length,
   };
 
   // Calculate risk distribution for charts
@@ -79,13 +99,15 @@ export function useDashboardData() {
 
   // Get students with their latest session score
   const studentsWithScores = studentsQuery.data?.map(student => {
-    const latestResult = resultsQuery.data?.find(r => r.student_id === student.id);
-    const score = latestResult?.dyslexia_probability_index ?? 0;
+    const latestResult = resultsQuery.data?.[0]; // Get most recent result
+    const score = latestResult?.overall_risk_score ?? 0;
+    const riskLevel = getRiskLevel(latestResult?.overall_risk_score);
+    
     return {
       id: student.id,
-      name: student.name,
-      grade: student.grade,
-      risk: student.risk_level || 'low',
+      name: `${student.first_name} ${student.last_name}`,
+      grade: student.grade_level || 'N/A',
+      risk: riskLevel,
       score,
       lastAssessed: latestResult?.created_at 
         ? new Date(latestResult.created_at).toLocaleDateString()

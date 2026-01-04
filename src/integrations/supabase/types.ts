@@ -14,16 +14,314 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      assessment_results: {
+        Row: {
+          assessment_id: string
+          attention_score: number | null
+          created_at: string
+          id: string
+          overall_risk_score: number | null
+          phonological_awareness_score: number | null
+          raw_data: Json | null
+          reading_fluency_score: number | null
+          recommendations: Json | null
+          visual_processing_score: number | null
+        }
+        Insert: {
+          assessment_id: string
+          attention_score?: number | null
+          created_at?: string
+          id?: string
+          overall_risk_score?: number | null
+          phonological_awareness_score?: number | null
+          raw_data?: Json | null
+          reading_fluency_score?: number | null
+          recommendations?: Json | null
+          visual_processing_score?: number | null
+        }
+        Update: {
+          assessment_id?: string
+          attention_score?: number | null
+          created_at?: string
+          id?: string
+          overall_risk_score?: number | null
+          phonological_awareness_score?: number | null
+          raw_data?: Json | null
+          reading_fluency_score?: number | null
+          recommendations?: Json | null
+          visual_processing_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_results_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments: {
+        Row: {
+          assessment_type: Database["public"]["Enums"]["assessment_type"]
+          assessor_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["assessment_status"]
+          student_id: string
+        }
+        Insert: {
+          assessment_type?: Database["public"]["Enums"]["assessment_type"]
+          assessor_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["assessment_status"]
+          student_id: string
+        }
+        Update: {
+          assessment_type?: Database["public"]["Enums"]["assessment_type"]
+          assessor_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["assessment_status"]
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_assessor_id_fkey"
+            columns: ["assessor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eye_tracking_data: {
+        Row: {
+          assessment_id: string
+          average_fixation_duration: number | null
+          created_at: string
+          fixation_points: Json | null
+          id: string
+          reading_speed_wpm: number | null
+          regression_count: number | null
+          saccade_patterns: Json | null
+        }
+        Insert: {
+          assessment_id: string
+          average_fixation_duration?: number | null
+          created_at?: string
+          fixation_points?: Json | null
+          id?: string
+          reading_speed_wpm?: number | null
+          regression_count?: number | null
+          saccade_patterns?: Json | null
+        }
+        Update: {
+          assessment_id?: string
+          average_fixation_duration?: number | null
+          created_at?: string
+          fixation_points?: Json | null
+          id?: string
+          reading_speed_wpm?: number | null
+          regression_count?: number | null
+          saccade_patterns?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eye_tracking_data_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interventions: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          effectiveness_rating: number | null
+          end_date: string | null
+          id: string
+          intervention_type: string
+          notes: string | null
+          start_date: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          effectiveness_rating?: number | null
+          end_date?: string | null
+          id?: string
+          intervention_type: string
+          notes?: string | null
+          start_date?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          effectiveness_rating?: number | null
+          end_date?: string | null
+          id?: string
+          intervention_type?: string
+          notes?: string | null
+          start_date?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interventions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interventions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          organization: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          organization?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          organization?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          created_at: string
+          created_by: string
+          date_of_birth: string | null
+          first_name: string
+          grade_level: string | null
+          id: string
+          last_name: string
+          notes: string | null
+          school: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          date_of_birth?: string | null
+          first_name: string
+          grade_level?: string | null
+          id?: string
+          last_name: string
+          notes?: string | null
+          school?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          date_of_birth?: string | null
+          first_name?: string
+          grade_level?: string | null
+          id?: string
+          last_name?: string
+          notes?: string | null
+          school?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "educator" | "clinician" | "parent"
+      assessment_status: "pending" | "in_progress" | "completed" | "cancelled"
+      assessment_type: "reading" | "phonological" | "visual" | "comprehensive"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +448,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "educator", "clinician", "parent"],
+      assessment_status: ["pending", "in_progress", "completed", "cancelled"],
+      assessment_type: ["reading", "phonological", "visual", "comprehensive"],
+    },
   },
 } as const

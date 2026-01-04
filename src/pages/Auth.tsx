@@ -46,8 +46,8 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user && !loading) {
-      // Check if user has selected a role (stored in profile)
-      if (profile?.title) {
+      // Check if user has selected a role (stored in profile organization field)
+      if (profile?.organization) {
         // User has a role, go to dashboard
         navigate('/dashboard');
       } else if (user) {
@@ -55,7 +55,7 @@ export default function AuthPage() {
         setPendingUser({
           id: user.id,
           email: user.email || user.phone || '',
-          name: profile?.display_name || user.user_metadata?.display_name || ''
+          name: profile?.full_name || user.user_metadata?.full_name || ''
         });
         setShowRoleSelection(true);
       }
@@ -117,10 +117,9 @@ export default function AuthPage() {
     const { error } = await supabase
       .from('profiles')
       .update({ 
-        title: roleDisplayMap[role],
-        organization: role === 'school' ? 'India K-12 School' : role === 'pediatrician' ? 'Medical Practice' : null
+        organization: roleDisplayMap[role]
       })
-      .eq('user_id', pendingUser.id);
+      .eq('id', pendingUser.id);
     
     setIsSubmitting(false);
     
