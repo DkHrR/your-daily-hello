@@ -13,14 +13,14 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
   const previousCount = useRef(0);
   
   const springValue = useSpring(0, { stiffness: 50, damping: 20 });
-  const displayValue = useTransform(springValue, (value) => Math.floor(value).toLocaleString('en-IN'));
   const [displayCount, setDisplayCount] = useState('0');
 
   useEffect(() => {
     const fetchCount = async () => {
       try {
+        // Query diagnostic_results table (the actual table in the database)
         const { count: totalCount, error } = await supabase
-          .from('assessment_results')
+          .from('diagnostic_results')
           .select('*', { count: 'exact', head: true });
         
         if (!error && totalCount !== null) {
@@ -44,7 +44,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'assessment_results'
+          table: 'diagnostic_results'
         },
         () => {
           setCount(prev => prev + 1);
@@ -134,7 +134,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
           </div>
           
           <p className="text-sm text-muted-foreground mt-1">
-            Total Assessments Performed in India
+            Students Scanned in India
           </p>
         </div>
       </div>

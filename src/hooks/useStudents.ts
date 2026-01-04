@@ -3,35 +3,32 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+// Match the actual database schema
 export interface Student {
   id: string;
-  created_by: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string | null;
-  grade_level: string | null;
-  school: string | null;
+  clinician_id: string;
+  name: string;
+  age: number;
+  grade: string;
+  risk_level: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface StudentInsert {
-  first_name: string;
-  last_name: string;
-  date_of_birth?: string | null;
-  grade_level?: string | null;
-  school?: string | null;
+  name: string;
+  age: number;
+  grade: string;
   notes?: string | null;
 }
 
 export interface StudentUpdate {
-  first_name?: string;
-  last_name?: string;
-  date_of_birth?: string | null;
-  grade_level?: string | null;
-  school?: string | null;
+  name?: string;
+  age?: number;
+  grade?: string;
   notes?: string | null;
+  risk_level?: string | null;
 }
 
 export function useStudents() {
@@ -60,7 +57,7 @@ export function useStudents() {
         .from('students')
         .insert({
           ...student,
-          created_by: user.id,
+          clinician_id: user.id,
         })
         .select()
         .single();

@@ -11,25 +11,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, UserPlus, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 
+// Match actual database schema
 interface Student {
   id: string;
-  created_by: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string | null;
-  grade_level: string | null;
-  school: string | null;
+  clinician_id: string;
+  name: string;
+  age: number;
+  grade: string;
+  risk_level: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
 
-const GRADES = ['Pre-K', 'K', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+const GRADES = ['K', '1st', '2nd', '3rd', '4th', '5th'];
 
 export default function Students() {
   const { user } = useAuth();
@@ -40,11 +39,9 @@ export default function Students() {
 
   // Form state
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    date_of_birth: '',
-    grade_level: '',
-    school: '',
+    name: '',
+    age: '',
+    grade: '',
     notes: '',
   });
 
@@ -65,7 +62,7 @@ export default function Students() {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: async (student: Omit<Student, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (student: { name: string; age: number; grade: string; notes: string | null; clinician_id: string }) => {
       const { data, error } = await supabase
         .from('students')
         .insert(student)
@@ -132,26 +129,26 @@ export default function Students() {
 
   const resetForm = () => {
     setFormData({
-      first_name: '',
-      last_name: '',
-      date_of_birth: '',
-      grade_level: '',
-      school: '',
+      name: '',
+      age: '',
+      grade: '',
       notes: '',
     });
   };
 
   const handleCreate = () => {
     if (!user) return;
+    if (!formData.name || !formData.age || !formData.grade) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
     
     createMutation.mutate({
-      first_name: formData.first_name,
-      last_name: formData.last_name,
-      date_of_birth: formData.date_of_birth || null,
-      grade_level: formData.grade_level || null,
-      school: formData.school || null,
+      name: formData.name,
+      age: parseInt(formData.age),
+      grade: formData.grade,
       notes: formData.notes || null,
-      created_by: user.id
+      clinician_id: user.id
     });
   };
 
@@ -161,11 +158,9 @@ export default function Students() {
     updateMutation.mutate({
       id: editingStudent.id,
       updates: {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        date_of_birth: formData.date_of_birth || null,
-        grade_level: formData.grade_level || null,
-        school: formData.school || null,
+        name: formData.name,
+        age: parseInt(formData.age),
+        grade: formData.grade,
         notes: formData.notes || null,
       }
     });
@@ -174,25 +169,11 @@ export default function Students() {
   const openEditDialog = (student: Student) => {
     setEditingStudent(student);
     setFormData({
-      first_name: student.first_name,
-      last_name: student.last_name,
-      date_of_birth: student.date_of_birth || '',
-      grade_level: student.grade_level || '',
-      school: student.school || '',
+      name: student.name,
+      age: student.age.toString(),
+      grade: student.grade,
       notes: student.notes || '',
     });
-  };
-
-  const calculateAge = (dob: string | null): number | null => {
-    if (!dob) return null;
-    const today = new Date();
-    const birthDate = new Date(dob);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
   };
 
   if (!user) {
@@ -242,41 +223,39 @@ export default function Students() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="first_name">First Name</Label>
-                      <Input
-                        id="first_name"
-                        value={formData.first_name}
-                        onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                        placeholder="First name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="last_name">Last Name</Label>
-                      <Input
-                        id="last_name"
-                        value={formData.last_name}
-                        onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                        placeholder="Last name"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Student Name *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Full name"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="date_of_birth">Date of Birth</Label>
-                      <Input
-                        id="date_of_birth"
-                        type="date"
-                        value={formData.date_of_birth}
-                        onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                      />
+                      <Label htmlFor="age">Age (5-11) *</Label>
+                      <Select
+                        value={formData.age}
+                        onValueChange={(value) => setFormData({ ...formData, age: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select age" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[5, 6, 7, 8, 9, 10, 11].map((age) => (
+                            <SelectItem key={age} value={age.toString()}>
+                              {age} years
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="grade_level">Grade</Label>
+                      <Label htmlFor="grade">Grade (K-5th) *</Label>
                       <Select
-                        value={formData.grade_level}
-                        onValueChange={(value) => setFormData({ ...formData, grade_level: value })}
+                        value={formData.grade}
+                        onValueChange={(value) => setFormData({ ...formData, grade: value })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select grade" />
@@ -284,21 +263,12 @@ export default function Students() {
                         <SelectContent>
                           {GRADES.map((grade) => (
                             <SelectItem key={grade} value={grade}>
-                              {grade}
+                              {grade === 'K' ? 'Kindergarten' : `${grade} Grade`}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="school">School (Optional)</Label>
-                    <Input
-                      id="school"
-                      value={formData.school}
-                      onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                      placeholder="School name"
-                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes (Optional)</Label>
@@ -317,7 +287,7 @@ export default function Students() {
                   </Button>
                   <Button 
                     onClick={handleCreate}
-                    disabled={!formData.first_name || !formData.last_name || createMutation.isPending}
+                    disabled={!formData.name || !formData.age || !formData.grade || createMutation.isPending}
                   >
                     {createMutation.isPending ? 'Adding...' : 'Add Student'}
                   </Button>
@@ -348,9 +318,9 @@ export default function Students() {
                     <CheckCircle className="w-6 h-6 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">With Profiles Complete</p>
+                    <p className="text-sm text-muted-foreground">Low Risk</p>
                     <p className="text-2xl font-bold">
-                      {students?.filter(s => s.date_of_birth && s.grade_level).length || 0}
+                      {students?.filter(s => s.risk_level === 'low' || !s.risk_level).length || 0}
                     </p>
                   </div>
                 </div>
@@ -363,9 +333,9 @@ export default function Students() {
                     <AlertTriangle className="w-6 h-6 text-warning" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Need Info</p>
+                    <p className="text-sm text-muted-foreground">High Risk</p>
                     <p className="text-2xl font-bold">
-                      {students?.filter(s => !s.date_of_birth || !s.grade_level).length || 0}
+                      {students?.filter(s => s.risk_level === 'high').length || 0}
                     </p>
                   </div>
                 </div>
@@ -394,7 +364,7 @@ export default function Students() {
                       <TableHead>Name</TableHead>
                       <TableHead>Age</TableHead>
                       <TableHead>Grade</TableHead>
-                      <TableHead>School</TableHead>
+                      <TableHead>Risk Level</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Added</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -404,13 +374,21 @@ export default function Students() {
                     {students.map((student) => (
                       <TableRow key={student.id}>
                         <TableCell className="font-medium">
-                          {student.first_name} {student.last_name}
+                          {student.name}
                         </TableCell>
+                        <TableCell>{student.age}</TableCell>
+                        <TableCell>{student.grade}</TableCell>
                         <TableCell>
-                          {calculateAge(student.date_of_birth) ?? '-'}
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            student.risk_level === 'high' 
+                              ? 'bg-destructive/10 text-destructive' 
+                              : student.risk_level === 'medium' || student.risk_level === 'moderate'
+                                ? 'bg-warning/10 text-warning'
+                                : 'bg-success/10 text-success'
+                          }`}>
+                            {student.risk_level || 'Low'}
+                          </span>
                         </TableCell>
-                        <TableCell>{student.grade_level || '-'}</TableCell>
-                        <TableCell>{student.school || '-'}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
                           {student.notes || '-'}
                         </TableCell>
@@ -466,39 +444,39 @@ export default function Students() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_first_name">First Name</Label>
-                    <Input
-                      id="edit_first_name"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit_last_name">Last Name</Label>
-                    <Input
-                      id="edit_last_name"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Student Name *</Label>
+                  <Input
+                    id="edit-name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Full name"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit_date_of_birth">Date of Birth</Label>
-                    <Input
-                      id="edit_date_of_birth"
-                      type="date"
-                      value={formData.date_of_birth}
-                      onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                    />
+                    <Label htmlFor="edit-age">Age (5-11) *</Label>
+                    <Select
+                      value={formData.age}
+                      onValueChange={(value) => setFormData({ ...formData, age: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select age" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[5, 6, 7, 8, 9, 10, 11].map((age) => (
+                          <SelectItem key={age} value={age.toString()}>
+                            {age} years
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit_grade_level">Grade</Label>
+                    <Label htmlFor="edit-grade">Grade (K-5th) *</Label>
                     <Select
-                      value={formData.grade_level}
-                      onValueChange={(value) => setFormData({ ...formData, grade_level: value })}
+                      value={formData.grade}
+                      onValueChange={(value) => setFormData({ ...formData, grade: value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select grade" />
@@ -506,7 +484,7 @@ export default function Students() {
                       <SelectContent>
                         {GRADES.map((grade) => (
                           <SelectItem key={grade} value={grade}>
-                            {grade}
+                            {grade === 'K' ? 'Kindergarten' : `${grade} Grade`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -514,19 +492,12 @@ export default function Students() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_school">School</Label>
-                  <Input
-                    id="edit_school"
-                    value={formData.school}
-                    onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_notes">Notes</Label>
+                  <Label htmlFor="edit-notes">Notes (Optional)</Label>
                   <Textarea
-                    id="edit_notes"
+                    id="edit-notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Any additional notes about the student..."
                     rows={3}
                   />
                 </div>
@@ -537,7 +508,7 @@ export default function Students() {
                 </Button>
                 <Button 
                   onClick={handleUpdate}
-                  disabled={!formData.first_name || !formData.last_name || updateMutation.isPending}
+                  disabled={!formData.name || !formData.age || !formData.grade || updateMutation.isPending}
                 >
                   {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -549,10 +520,9 @@ export default function Students() {
           <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Delete Student</DialogTitle>
+                <DialogTitle>Remove Student</DialogTitle>
                 <DialogDescription>
                   Are you sure you want to remove this student? This action cannot be undone.
-                  All associated assessments and data will also be deleted.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -560,11 +530,11 @@ export default function Students() {
                   Cancel
                 </Button>
                 <Button 
-                  variant="destructive"
+                  variant="destructive" 
                   onClick={() => deleteConfirm && deleteMutation.mutate(deleteConfirm)}
                   disabled={deleteMutation.isPending}
                 >
-                  {deleteMutation.isPending ? 'Deleting...' : 'Delete Student'}
+                  {deleteMutation.isPending ? 'Removing...' : 'Remove Student'}
                 </Button>
               </DialogFooter>
             </DialogContent>
