@@ -1,6 +1,9 @@
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ScienceSection } from '@/components/landing/ScienceSection';
 import { FeaturesSection } from '@/components/landing/FeaturesSection';
+import { PricingSection } from '@/components/landing/PricingSection';
+import { TestimonialsSection } from '@/components/landing/TestimonialsSection';
+import { FAQSection } from '@/components/landing/FAQSection';
 import { CTASection } from '@/components/landing/CTASection';
 import { LiveCounter } from '@/components/landing/LiveCounter';
 import { Header } from '@/components/layout/Header';
@@ -17,6 +20,9 @@ const Index = () => {
         </div>
         <ScienceSection />
         <FeaturesSection />
+        <PricingSection />
+        <TestimonialsSection />
+        <FAQSection />
         <CTASection />
       </main>
       <Footer />

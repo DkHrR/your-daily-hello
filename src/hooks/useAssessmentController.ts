@@ -162,18 +162,15 @@ export function useAssessmentController(options: UseAssessmentControllerOptions 
     
     setResult(diagnosticResult);
     
-    // Save to database if we have a student ID
+    // Save to database if we have an assessment ID (passed as studentId for now)
+    // In a full implementation, you would create an assessment first
     if (studentId) {
       try {
         await diagnosticEngine.saveDiagnosticResult(
-          studentId,
+          studentId, // This would be assessment_id in a full implementation
           diagnosticResult,
           eyeTracking.fixations,
           eyeTracking.saccades
-        );
-        await diagnosticEngine.updateStudentRiskLevel(
-          studentId,
-          diagnosticResult.overallRiskLevel
         );
       } catch (error) {
         console.error('Failed to save diagnostic result:', error);

@@ -2,6 +2,16 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  organization: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -15,16 +25,6 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   profile: Profile | null;
-}
-
-interface Profile {
-  id: string;
-  user_id: string;
-  display_name: string | null;
-  title: string | null;
-  organization: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle();
     
     if (!error && data) {
@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: {
         emailRedirectTo: redirectUrl,
         data: {
-          display_name: displayName || email.split('@')[0]
+          full_name: displayName || email.split('@')[0]
         }
       }
     });

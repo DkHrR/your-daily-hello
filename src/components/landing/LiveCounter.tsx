@@ -20,7 +20,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
     const fetchCount = async () => {
       try {
         const { count: totalCount, error } = await supabase
-          .from('diagnostic_results')
+          .from('assessment_results')
           .select('*', { count: 'exact', head: true });
         
         if (!error && totalCount !== null) {
@@ -38,13 +38,13 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('diagnostic-counter')
+      .channel('assessment-counter')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'diagnostic_results'
+          table: 'assessment_results'
         },
         () => {
           setCount(prev => prev + 1);
@@ -134,7 +134,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
           </div>
           
           <p className="text-sm text-muted-foreground mt-1">
-            Total Eye-Scans Performed in India
+            Total Assessments Performed in India
           </p>
         </div>
       </div>

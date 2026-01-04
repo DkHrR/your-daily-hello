@@ -138,84 +138,106 @@ export function useDiagnosticEngine() {
 
   // Save diagnostic result to database
   const saveDiagnosticResult = useCallback(async (
-    studentId: string,
+    assessmentId: string,
     result: DiagnosticResult,
     fixations: Fixation[],
     saccades: Saccade[]
   ) => {
     if (!user) throw new Error('User not authenticated');
 
-    const { data, error } = await supabase
-      .from('diagnostic_results')
+    // Convert indices to percentage scores (0-100)
+    const overallRiskScore = Math.max(
+      result.dyslexiaProbabilityIndex,
+      result.adhdProbabilityIndex,
+      result.dysgraphiaProbabilityIndex
+    ) * 100;
+    
+    const readingFluencyScore = result.voice.fluencyScore;
+    const phonologicalScore = (1 - result.dyslexiaProbabilityIndex) * 100;
+    const visualProcessingScore = (1 - result.eyeTracking.chaosIndex) * 100;
+    const attentionScore = (1 - result.adhdProbabilityIndex) * 100;
+
+    // Save assessment results
+    const { error: resultError } = await supabase
+      .from('assessment_results')
       .insert([{
-        student_id: studentId,
-        clinician_id: user.id,
-        session_id: result.sessionId,
-        
-        // Eye tracking
-        eye_total_fixations: result.eyeTracking.totalFixations,
-        eye_avg_fixation_duration: result.eyeTracking.averageFixationDuration,
-        eye_regression_count: result.eyeTracking.regressionCount,
-        eye_prolonged_fixations: result.eyeTracking.prolongedFixations,
-        eye_chaos_index: result.eyeTracking.chaosIndex,
-        eye_fixation_intersection_coefficient: result.eyeTracking.fixationIntersectionCoefficient,
-        
-        // Voice
-        voice_words_per_minute: result.voice.wordsPerMinute,
-        voice_pause_count: result.voice.pauseCount,
-        voice_avg_pause_duration: result.voice.averagePauseDuration,
-        voice_phonemic_errors: result.voice.phonemicErrors,
-        voice_fluency_score: result.voice.fluencyScore,
-        voice_prosody_score: result.voice.prosodyScore,
-        voice_stall_count: result.voice.stallCount || 0,
-        voice_avg_stall_duration: result.voice.averageStallDuration || 0,
-        voice_stall_events: JSON.parse(JSON.stringify(result.voice.stallEvents || [])),
-        
-        // Handwriting
-        handwriting_reversal_count: result.handwriting.reversalCount,
-        handwriting_letter_crowding: result.handwriting.letterCrowding,
-        handwriting_graphic_inconsistency: result.handwriting.graphicInconsistency,
-        handwriting_line_adherence: result.handwriting.lineAdherence,
-        
-        // Cognitive load
-        cognitive_avg_pupil_dilation: result.cognitiveLoad.averagePupilDilation,
-        cognitive_overload_events: result.cognitiveLoad.overloadEvents,
-        cognitive_stress_indicators: result.cognitiveLoad.stressIndicators,
-        
-        // Probability indices
-        dyslexia_probability_index: result.dyslexiaProbabilityIndex,
-        adhd_probability_index: result.adhdProbabilityIndex,
-        dysgraphia_probability_index: result.dysgraphiaProbabilityIndex,
-        overall_risk_level: result.overallRiskLevel,
-        
-        // Raw data for visualizations
-        fixation_data: JSON.parse(JSON.stringify(fixations)),
-        saccade_data: JSON.parse(JSON.stringify(saccades))
-      }])
-      .select()
-      .single();
+        assessment_id: assessmentId,
+        overall_risk_score: overallRiskScore,
+        reading_fluency_score: readingFluencyScore,
+        phonological_awareness_score: phonologicalScore,
+        visual_processing_score: visualProcessingScore,
+        attention_score: attentionScore,
+        recommendations: generateRecommendations(result),
+        raw_data: JSON.parse(JSON.stringify({
+          eyeTracking: result.eyeTracking,
+          voice: result.voice,
+          handwriting: result.handwriting,
+          cognitiveLoad: result.cognitiveLoad,
+          indices: {
+            dyslexia: result.dyslexiaProbabilityIndex,
+            adhd: result.adhdProbabilityIndex,
+            dysgraphia: result.dysgraphiaProbabilityIndex
+          }
+        }))
+      }]);
 
-    if (error) throw error;
-    return data;
+    if (resultError) throw resultError;
+
+    // Save eye tracking data
+    const { error: eyeError } = await supabase
+      .from('eye_tracking_data')
+      .insert([{
+        assessment_id: assessmentId,
+        fixation_points: JSON.parse(JSON.stringify(fixations)),
+        saccade_patterns: JSON.parse(JSON.stringify(saccades)),
+        regression_count: result.eyeTracking.regressionCount,
+        average_fixation_duration: result.eyeTracking.averageFixationDuration,
+        reading_speed_wpm: result.voice.wordsPerMinute
+      }]);
+
+    if (eyeError) throw eyeError;
+
+    // Update assessment status
+    await supabase
+      .from('assessments')
+      .update({ 
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', assessmentId);
+
+    return { success: true };
   }, [user]);
 
-  // Update student risk level based on latest assessment
-  const updateStudentRiskLevel = useCallback(async (
-    studentId: string,
-    riskLevel: 'low' | 'moderate' | 'high'
-  ) => {
-    if (!user) throw new Error('User not authenticated');
+  // Generate recommendations based on results
+  const generateRecommendations = (result: DiagnosticResult): string[] => {
+    const recommendations: string[] = [];
 
-    // Map 'moderate' to 'medium' for database
-    const dbRiskLevel = riskLevel === 'moderate' ? 'medium' : riskLevel as 'low' | 'high';
+    if (result.dyslexiaProbabilityIndex >= 0.5) {
+      recommendations.push('Consider structured literacy intervention');
+      recommendations.push('Use multi-sensory reading instruction');
+      recommendations.push('Implement phonics-based reading program');
+    }
 
-    const { error } = await supabase
-      .from('students')
-      .update({ risk_level: dbRiskLevel })
-      .eq('id', studentId);
+    if (result.adhdProbabilityIndex >= 0.5) {
+      recommendations.push('Break reading tasks into shorter sessions');
+      recommendations.push('Use visual timers and frequent breaks');
+      recommendations.push('Minimize environmental distractions');
+    }
 
-    if (error) throw error;
-  }, [user]);
+    if (result.dysgraphiaProbabilityIndex >= 0.5) {
+      recommendations.push('Practice letter formation exercises');
+      recommendations.push('Consider occupational therapy assessment');
+      recommendations.push('Allow use of assistive technology for writing');
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Continue current reading program');
+      recommendations.push('Monitor progress with regular assessments');
+    }
+
+    return recommendations;
+  };
 
   return {
     calculateDyslexiaIndex,
@@ -224,6 +246,5 @@ export function useDiagnosticEngine() {
     determineRiskLevel,
     createDiagnosticResult,
     saveDiagnosticResult,
-    updateStudentRiskLevel
   };
 }
