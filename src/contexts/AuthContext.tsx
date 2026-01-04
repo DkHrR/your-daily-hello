@@ -4,9 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Profile {
   id: string;
-  email: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
+  user_id: string;
+  display_name: string | null;
+  title: string | null;
   organization: string | null;
   created_at: string;
   updated_at: string;
@@ -20,8 +20,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signInWithMagicLink: (email: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
-  signInWithPhone: (phone: string) => Promise<{ error: any }>;
-  verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   profile: Profile | null;
@@ -70,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
     
     if (!error && data) {
@@ -87,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: {
         emailRedirectTo: redirectUrl,
         data: {
+          display_name: displayName || email.split('@')[0],
           full_name: displayName || email.split('@')[0]
         }
       }
@@ -124,22 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signInWithPhone = async (phone: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      phone,
-    });
-    return { error };
-  };
-
-  const verifyPhoneOtp = async (phone: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      phone,
-      token,
-      type: 'sms',
-    });
-    return { error };
-  };
-
   const resetPassword = async (email: string) => {
     const redirectUrl = `${window.location.origin}/auth?type=recovery`;
     
@@ -162,8 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signInWithMagicLink,
       signInWithGoogle,
-      signInWithPhone,
-      verifyPhoneOtp,
       resetPassword,
       signOut,
       profile

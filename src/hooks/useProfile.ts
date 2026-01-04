@@ -3,27 +3,21 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
+// Match the actual database schema for profiles
 export interface Profile {
   id: string;
-  email: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
+  user_id: string;
+  display_name: string | null;
+  title: string | null;
   organization: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProfileUpdate {
-  full_name?: string;
-  avatar_url?: string;
+  display_name?: string;
+  title?: string;
   organization?: string;
-}
-
-export interface UserRole {
-  id: string;
-  user_id: string;
-  role: 'admin' | 'educator' | 'clinician' | 'parent';
-  created_at: string;
 }
 
 export function useProfile() {
@@ -38,27 +32,11 @@ export function useProfile() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) throw error;
       return data as Profile | null;
-    },
-    enabled: !!user,
-  });
-
-  const rolesQuery = useQuery({
-    queryKey: ['user-roles', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      return data as UserRole[];
     },
     enabled: !!user,
   });
@@ -70,7 +48,7 @@ export function useProfile() {
       const { data, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -86,20 +64,10 @@ export function useProfile() {
     },
   });
 
-  const hasRole = (role: UserRole['role']) => {
-    return rolesQuery.data?.some(r => r.role === role) ?? false;
-  };
-
   return {
     profile: profileQuery.data,
-    roles: rolesQuery.data ?? [],
-    isLoading: profileQuery.isLoading || rolesQuery.isLoading,
-    isError: profileQuery.isError || rolesQuery.isError,
+    isLoading: profileQuery.isLoading,
+    isError: profileQuery.isError,
     updateProfile,
-    hasRole,
-    isAdmin: hasRole('admin'),
-    isEducator: hasRole('educator'),
-    isClinician: hasRole('clinician'),
-    isParent: hasRole('parent'),
   };
 }

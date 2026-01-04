@@ -3,199 +3,160 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-export type AssessmentType = 'reading' | 'phonological' | 'visual' | 'comprehensive';
-export type AssessmentStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
-
-export interface Assessment {
+export interface DiagnosticResult {
   id: string;
   student_id: string;
-  assessor_id: string;
-  assessment_type: AssessmentType;
-  status: AssessmentStatus;
-  started_at: string | null;
-  completed_at: string | null;
+  clinician_id: string;
+  session_id: string;
+  overall_risk_level: string | null;
+  dyslexia_probability_index: number | null;
+  adhd_probability_index: number | null;
+  dysgraphia_probability_index: number | null;
+  eye_total_fixations: number | null;
+  eye_avg_fixation_duration: number | null;
+  eye_regression_count: number | null;
+  voice_words_per_minute: number | null;
+  voice_fluency_score: number | null;
   created_at: string;
 }
 
-export interface AssessmentResult {
+export interface Student {
   id: string;
-  assessment_id: string;
-  overall_risk_score: number | null;
-  reading_fluency_score: number | null;
-  phonological_awareness_score: number | null;
-  visual_processing_score: number | null;
-  attention_score: number | null;
-  recommendations: string[];
-  raw_data: Record<string, unknown>;
+  name: string;
+  age: number;
+  grade: string;
+  risk_level: string | null;
+  notes: string | null;
+  clinician_id: string;
   created_at: string;
+  updated_at: string;
 }
 
-export interface AssessmentWithResults extends Assessment {
-  results?: AssessmentResult;
-  student?: {
-    first_name: string;
-    last_name: string;
-  };
-}
-
-export interface CreateAssessmentInput {
+export interface CreateDiagnosticInput {
   student_id: string;
-  assessment_type: AssessmentType;
-}
-
-export interface SaveResultsInput {
-  assessment_id: string;
-  overall_risk_score?: number;
-  reading_fluency_score?: number;
-  phonological_awareness_score?: number;
-  visual_processing_score?: number;
-  attention_score?: number;
-  recommendations?: string[];
-  raw_data?: Record<string, unknown>;
+  session_id: string;
+  overall_risk_level?: string;
+  dyslexia_probability_index?: number;
+  adhd_probability_index?: number;
+  dysgraphia_probability_index?: number;
+  eye_total_fixations?: number;
+  eye_avg_fixation_duration?: number;
+  eye_regression_count?: number;
+  voice_words_per_minute?: number;
+  voice_fluency_score?: number;
 }
 
 export function useAssessments() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const assessmentsQuery = useQuery({
-    queryKey: ['assessments'],
+  const diagnosticsQuery = useQuery({
+    queryKey: ['diagnostic_results'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('assessments')
+        .from('diagnostic_results')
         .select(`
           *,
-          students (first_name, last_name)
+          students (name, grade, age)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as (Assessment & { students: { first_name: string; last_name: string } | null })[];
+      return data as (DiagnosticResult & { students: { name: string; grade: string; age: number } | null })[];
     },
     enabled: !!user,
   });
 
-  const createAssessment = useMutation({
-    mutationFn: async (input: CreateAssessmentInput) => {
+  const studentsQuery = useQuery({
+    queryKey: ['students'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      return data as Student[];
+    },
+    enabled: !!user,
+  });
+
+  const createDiagnostic = useMutation({
+    mutationFn: async (input: CreateDiagnosticInput) => {
       if (!user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
-        .from('assessments')
+        .from('diagnostic_results')
         .insert({
-          student_id: input.student_id,
-          assessor_id: user.id,
-          assessment_type: input.assessment_type,
-          status: 'pending',
+          ...input,
+          clinician_id: user.id,
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data as Assessment;
+      return data as DiagnosticResult;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] });
-      toast.success('Assessment created');
+      queryClient.invalidateQueries({ queryKey: ['diagnostic_results'] });
+      toast.success('Diagnostic result saved');
     },
     onError: (error) => {
-      toast.error('Failed to create assessment: ' + error.message);
+      toast.error('Failed to save diagnostic: ' + error.message);
     },
   });
 
-  const startAssessment = useMutation({
-    mutationFn: async (id: string) => {
+  const createStudent = useMutation({
+    mutationFn: async (input: { name: string; age: number; grade: string; notes?: string }) => {
+      if (!user) throw new Error('Not authenticated');
+
       const { data, error } = await supabase
-        .from('assessments')
-        .update({
-          status: 'in_progress',
-          started_at: new Date().toISOString(),
+        .from('students')
+        .insert({
+          ...input,
+          clinician_id: user.id,
         })
-        .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
-      return data as Assessment;
+      return data as Student;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('Student added');
     },
-  });
-
-  const completeAssessment = useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from('assessments')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as Assessment;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] });
-      toast.success('Assessment completed');
-    },
-  });
-
-  const saveResults = useMutation({
-    mutationFn: async (input: SaveResultsInput) => {
-      const { data, error } = await supabase
-        .from('assessment_results')
-        .insert([{
-          assessment_id: input.assessment_id,
-          overall_risk_score: input.overall_risk_score,
-          reading_fluency_score: input.reading_fluency_score,
-          phonological_awareness_score: input.phonological_awareness_score,
-          visual_processing_score: input.visual_processing_score,
-          attention_score: input.attention_score,
-          recommendations: JSON.parse(JSON.stringify(input.recommendations ?? [])),
-          raw_data: JSON.parse(JSON.stringify(input.raw_data ?? {})),
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as AssessmentResult;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessments'] });
-      queryClient.invalidateQueries({ queryKey: ['assessment-results'] });
+    onError: (error) => {
+      toast.error('Failed to add student: ' + error.message);
     },
   });
 
   return {
-    assessments: assessmentsQuery.data ?? [],
-    isLoading: assessmentsQuery.isLoading,
-    isError: assessmentsQuery.isError,
-    error: assessmentsQuery.error,
-    createAssessment,
-    startAssessment,
-    completeAssessment,
-    saveResults,
+    diagnostics: diagnosticsQuery.data ?? [],
+    students: studentsQuery.data ?? [],
+    isLoading: diagnosticsQuery.isLoading || studentsQuery.isLoading,
+    isError: diagnosticsQuery.isError || studentsQuery.isError,
+    error: diagnosticsQuery.error || studentsQuery.error,
+    createDiagnostic,
+    createStudent,
   };
 }
 
-export function useAssessmentResults(assessmentId?: string) {
+export function useDiagnosticResults(studentId?: string) {
   return useQuery({
-    queryKey: ['assessment-results', assessmentId],
+    queryKey: ['diagnostic_results', studentId],
     queryFn: async () => {
-      if (!assessmentId) return null;
+      if (!studentId) return null;
       
       const { data, error } = await supabase
-        .from('assessment_results')
+        .from('diagnostic_results')
         .select('*')
-        .eq('assessment_id', assessmentId)
-        .maybeSingle();
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as AssessmentResult | null;
+      return data as DiagnosticResult[];
     },
-    enabled: !!assessmentId,
+    enabled: !!studentId,
   });
 }

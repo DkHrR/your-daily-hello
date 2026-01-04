@@ -167,7 +167,8 @@ export function useAssessmentController(options: UseAssessmentControllerOptions 
     if (studentId) {
       try {
         await diagnosticEngine.saveDiagnosticResult(
-          studentId, // This would be assessment_id in a full implementation
+          studentId,
+          diagnosticResult.sessionId,
           diagnosticResult,
           eyeTracking.fixations,
           eyeTracking.saccades

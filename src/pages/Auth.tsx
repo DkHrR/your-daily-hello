@@ -10,9 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RoleSelection } from '@/components/auth/RoleSelection';
 import { toast } from 'sonner';
-import { Brain, Mail, Lock, User, Loader2, Phone, ArrowLeft } from 'lucide-react';
+import { Brain, Mail, Lock, User, Loader2, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string()
@@ -21,26 +20,19 @@ const passwordSchema = z.string()
   .regex(/[a-z]/, 'Must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Must contain at least one number')
   .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character');
-const phoneSchema = z.string()
-  .min(10, 'Phone number must be at least 10 digits')
-  .regex(/^\+?[1-9]\d{9,14}$/, 'Please enter a valid phone number with country code (e.g., +91XXXXXXXXXX)');
 
 type UserRole = 'individual' | 'school' | 'pediatrician';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { user, signIn, signUp, signInWithMagicLink, signInWithGoogle, signInWithPhone, verifyPhoneOtp, resetPassword, loading, profile } = useAuth();
+  const { user, signIn, signUp, signInWithMagicLink, signInWithGoogle, resetPassword, loading, profile } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [showPhoneLogin, setShowPhoneLogin] = useState(false);
-  const [showOtpInput, setShowOtpInput] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string; phone?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [pendingUser, setPendingUser] = useState<{ id: string; email: string; name: string } | null>(null);
 
@@ -54,8 +46,8 @@ export default function AuthPage() {
         // User exists but no role - show role selection
         setPendingUser({
           id: user.id,
-          email: user.email || user.phone || '',
-          name: profile?.full_name || user.user_metadata?.full_name || ''
+          email: user.email || '',
+          name: profile?.display_name || user.user_metadata?.full_name || user.user_metadata?.name || ''
         });
         setShowRoleSelection(true);
       }
@@ -88,19 +80,6 @@ export default function AuthPage() {
     }
   };
 
-  const validatePhone = (value: string) => {
-    try {
-      phoneSchema.parse(value);
-      setErrors(prev => ({ ...prev, phone: undefined }));
-      return true;
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        setErrors(prev => ({ ...prev, phone: e.errors[0].message }));
-      }
-      return false;
-    }
-  };
-
   const handleRoleSelect = async (role: UserRole) => {
     if (!pendingUser) return;
     
@@ -113,13 +92,13 @@ export default function AuthPage() {
       pediatrician: 'Pediatrician'
     };
     
-    // Update profile with selected role
+    // Update profile with selected role using user_id
     const { error } = await supabase
       .from('profiles')
       .update({ 
         organization: roleDisplayMap[role]
       })
-      .eq('id', pendingUser.id);
+      .eq('user_id', pendingUser.id);
     
     setIsSubmitting(false);
     
@@ -142,6 +121,8 @@ export default function AuthPage() {
     if (error) {
       if (error.message?.includes('Invalid login credentials')) {
         toast.error('Invalid email or password. Please try again.');
+      } else if (error.message?.includes('Email not confirmed')) {
+        toast.error('Please confirm your email before signing in.');
       } else {
         toast.error(error.message || 'Failed to sign in');
       }
@@ -199,51 +180,8 @@ export default function AuthPage() {
     // Role check will happen after OAuth redirect via useEffect
   };
 
-  const handlePhoneSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validatePhone(phone)) return;
-    
-    setIsSubmitting(true);
-    const { error } = await signInWithPhone(phone);
-    setIsSubmitting(false);
-    
-    if (error) {
-      toast.error(error.message || 'Failed to send OTP. Please check if SMS is configured.');
-    } else {
-      toast.success('OTP sent to your phone!');
-      setShowOtpInput(true);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      toast.error('Please enter the 6-digit OTP');
-      return;
-    }
-    
-    setIsSubmitting(true);
-    const { error } = await verifyPhoneOtp(phone, otp);
-    setIsSubmitting(false);
-    
-    if (error) {
-      toast.error(error.message || 'Invalid OTP. Please try again.');
-    } else {
-      toast.success('Phone verified successfully!');
-      // Role check will happen via useEffect
-    }
-  };
-
-  const handleBackToPhoneInput = () => {
-    setShowOtpInput(false);
-    setOtp('');
-  };
-
   const handleBackToEmailLogin = () => {
-    setShowPhoneLogin(false);
     setShowForgotPassword(false);
-    setShowOtpInput(false);
-    setPhone('');
-    setOtp('');
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -370,124 +308,6 @@ export default function AuthPage() {
                         </Button>
                       </form>
                     </motion.div>
-                  ) : showPhoneLogin ? (
-                    <motion.div
-                      key="phone-login"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                    >
-                      {showOtpInput ? (
-                        <div className="space-y-6">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleBackToPhoneInput}
-                            className="mb-4"
-                          >
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Back
-                          </Button>
-                          
-                          <div className="text-center space-y-2">
-                            <Phone className="w-12 h-12 mx-auto text-primary" />
-                            <h3 className="text-lg font-semibold">Enter OTP</h3>
-                            <p className="text-sm text-muted-foreground">
-                              We sent a 6-digit code to {phone}
-                            </p>
-                          </div>
-                          
-                          <div className="flex justify-center">
-                            <InputOTP
-                              maxLength={6}
-                              value={otp}
-                              onChange={(value) => setOtp(value)}
-                            >
-                              <InputOTPGroup>
-                                <InputOTPSlot index={0} />
-                                <InputOTPSlot index={1} />
-                                <InputOTPSlot index={2} />
-                                <InputOTPSlot index={3} />
-                                <InputOTPSlot index={4} />
-                                <InputOTPSlot index={5} />
-                              </InputOTPGroup>
-                            </InputOTP>
-                          </div>
-                          
-                          <Button
-                            onClick={handleVerifyOtp}
-                            className="w-full"
-                            disabled={isSubmitting || otp.length !== 6}
-                          >
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Verifying...
-                              </>
-                            ) : (
-                              'Verify OTP'
-                            )}
-                          </Button>
-                          
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="w-full"
-                            onClick={() => handlePhoneSignIn({ preventDefault: () => {} } as React.FormEvent)}
-                            disabled={isSubmitting}
-                          >
-                            Resend OTP
-                          </Button>
-                        </div>
-                      ) : (
-                        <form onSubmit={handlePhoneSignIn} className="space-y-4">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleBackToEmailLogin}
-                            className="mb-4"
-                          >
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Back to Email
-                          </Button>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="phone">Mobile Number</Label>
-                            <div className="relative">
-                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                              <Input
-                                id="phone"
-                                type="tel"
-                                placeholder="+91XXXXXXXXXX"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                onBlur={() => phone && validatePhone(phone)}
-                                className="pl-10"
-                              />
-                            </div>
-                            {errors.phone && (
-                              <p className="text-sm text-destructive">{errors.phone}</p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              Enter with country code (e.g., +91 for India)
-                            </p>
-                          </div>
-                          
-                          <Button type="submit" className="w-full" disabled={isSubmitting}>
-                            {isSubmitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Sending OTP...
-                              </>
-                            ) : (
-                              'Send OTP'
-                            )}
-                          </Button>
-                        </form>
-                      )}
-                    </motion.div>
                   ) : (
                     <motion.div
                       key="email-login"
@@ -574,7 +394,7 @@ export default function AuthPage() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <Button
                               type="button"
                               variant="outline"
@@ -582,7 +402,8 @@ export default function AuthPage() {
                               disabled={isSubmitting || !email}
                               title="Magic Link"
                             >
-                              <Mail className="w-4 h-4" />
+                              <Mail className="w-4 h-4 mr-2" />
+                              Magic Link
                             </Button>
                             <Button
                               type="button"
@@ -591,7 +412,7 @@ export default function AuthPage() {
                               disabled={isSubmitting}
                               title="Google"
                             >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                                 <path
                                   fill="currentColor"
                                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -609,15 +430,7 @@ export default function AuthPage() {
                                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                                 />
                               </svg>
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setShowPhoneLogin(true)}
-                              disabled={isSubmitting}
-                              title="Phone"
-                            >
-                              <Phone className="w-4 h-4" />
+                              Google
                             </Button>
                           </div>
                         </TabsContent>
@@ -701,43 +514,33 @@ export default function AuthPage() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={handleGoogleSignIn}
-                              disabled={isSubmitting}
-                            >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                                <path
-                                  fill="currentColor"
-                                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                                />
-                                <path
-                                  fill="currentColor"
-                                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                                />
-                                <path
-                                  fill="currentColor"
-                                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                                />
-                                <path
-                                  fill="currentColor"
-                                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                                />
-                              </svg>
-                              Google
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setShowPhoneLogin(true)}
-                              disabled={isSubmitting}
-                            >
-                              <Phone className="w-4 h-4" />
-                              Phone
-                            </Button>
-                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleGoogleSignIn}
+                            disabled={isSubmitting}
+                            className="w-full"
+                          >
+                            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                              <path
+                                fill="currentColor"
+                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                              />
+                              <path
+                                fill="currentColor"
+                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                              />
+                              <path
+                                fill="currentColor"
+                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                              />
+                              <path
+                                fill="currentColor"
+                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                              />
+                            </svg>
+                            Sign up with Google
+                          </Button>
                         </TabsContent>
                       </Tabs>
                     </motion.div>
