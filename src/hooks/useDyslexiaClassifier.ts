@@ -36,12 +36,16 @@ export interface DyslexiaBiomarkers {
   // Composite scores
   dyslexiaRiskScore: number; // 0-100
   overallRisk: RiskLevel;
+  riskLevel: RiskLevel; // Alias for overallRisk for compatibility
   
   // Feature vector for ML
   featureVector: number[];
   
   // Confidence
   confidence: number;
+  
+  // Estimated reading speed (WPM)
+  estimatedReadingSpeed: number;
 }
 
 interface ClassifierConfig {
@@ -99,6 +103,21 @@ export function useDyslexiaClassifier(config: Partial<ClassifierConfig> = {}) {
   
   // Store historical data for trend analysis
   const historyRef = useRef<DyslexiaBiomarkers[]>([]);
+  
+  // Running state for real-time updates
+  const runningStateRef = useRef<{
+    saccadeCount: number;
+    regressionCount: number;
+    fixationDurations: number[];
+    saccadeAmplitudes: number[];
+    startTime: number | null;
+  }>({
+    saccadeCount: 0,
+    regressionCount: 0,
+    fixationDurations: [],
+    saccadeAmplitudes: [],
+    startTime: null,
+  });
 
   // Classify risk level based on threshold
   const classifyRisk = useCallback((
@@ -291,6 +310,13 @@ export function useDyslexiaClassifier(config: Partial<ClassifierConfig> = {}) {
     const totalEvents = metrics.events.length;
     const confidence = Math.min(1, totalEvents / (cfg.minSamplesForConfidence * 5));
     
+    // Estimate reading speed (WPM) from fixation and saccade data
+    const totalReadingTime = metrics.totalReadingTime / 1000; // seconds
+    const estimatedWordsRead = fixations.length * 1.2; // ~1.2 words per fixation on average
+    const estimatedReadingSpeed = totalReadingTime > 0 
+      ? Math.round((estimatedWordsRead / totalReadingTime) * 60) 
+      : 0;
+    
     // Generate feature vector
     const featureVector = generateFeatureVector(partialBiomarkers);
     
@@ -309,8 +335,10 @@ export function useDyslexiaClassifier(config: Partial<ClassifierConfig> = {}) {
       motorControlIssue,
       dyslexiaRiskScore,
       overallRisk,
+      riskLevel: overallRisk, // Alias for compatibility
       featureVector,
       confidence,
+      estimatedReadingSpeed,
     };
     
     // Store in history
@@ -354,12 +382,73 @@ export function useDyslexiaClassifier(config: Partial<ClassifierConfig> = {}) {
   // Reset classifier
   const reset = useCallback(() => {
     historyRef.current = [];
+    runningStateRef.current = {
+      saccadeCount: 0,
+      regressionCount: 0,
+      fixationDurations: [],
+      saccadeAmplitudes: [],
+      startTime: null,
+    };
+  }, []);
+
+  // Update from real-time gaze data
+  const updateFromGaze = useCallback((gaze: {
+    x: number;
+    y: number;
+    timestamp: number;
+    velocity: number;
+    isSaccade: boolean;
+  }) => {
+    const state = runningStateRef.current;
+    
+    if (!state.startTime) {
+      state.startTime = gaze.timestamp;
+    }
+    
+    if (gaze.isSaccade) {
+      state.saccadeCount++;
+      state.saccadeAmplitudes.push(gaze.velocity / 30); // Approximate amplitude from velocity
+    }
+  }, []);
+
+  // Get current biomarkers from running state (for real-time display)
+  const getBiomarkers = useCallback((): DyslexiaBiomarkers => {
+    const state = runningStateRef.current;
+    const lastResult = historyRef.current[historyRef.current.length - 1];
+    
+    if (lastResult) {
+      return lastResult;
+    }
+    
+    // Return default biomarkers if no data yet
+    return {
+      regressionRate: 0,
+      regressionRateRisk: 'low',
+      fixationDwell: 0,
+      fixationDwellRisk: 'low',
+      saccadicAmplitude: 0,
+      saccadicAmplitudeRisk: 'low',
+      stepByStepDecoding: false,
+      averageSaccadeLength: 0,
+      prolongedFixationRate: 0,
+      psoRate: 0,
+      glissadeRate: 0,
+      motorControlIssue: false,
+      dyslexiaRiskScore: 0,
+      overallRisk: 'low',
+      riskLevel: 'low',
+      featureVector: [],
+      confidence: 0,
+      estimatedReadingSpeed: 0,
+    };
   }, []);
 
   return {
     classify,
     getTrendAnalysis,
     reset,
+    updateFromGaze,
+    getBiomarkers,
     config: cfg,
   };
 }
