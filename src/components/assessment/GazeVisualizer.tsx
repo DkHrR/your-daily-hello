@@ -1,4 +1,10 @@
-import { useRef, useEffect, useState } from 'react';
+/**
+ * GazeVisualizer: Debug visualization for gaze tracking
+ * CRITICAL: Supports Ghost Mode - hidden by default during tests
+ * Only visible when clinician toggles debug view
+ */
+
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { GazePoint, Fixation } from '@/types/diagnostic';
 import { GazeHeatmapOverlay } from './GazeHeatmapOverlay';
@@ -10,6 +16,8 @@ interface GazeVisualizerProps {
   showHeatmap?: boolean;
   showScanpath?: boolean;
   containerRef?: React.RefObject<HTMLDivElement>;
+  /** When true, hides ALL visualization - student sees only text (Ghost Mode) */
+  ghostMode?: boolean;
 }
 
 export function GazeVisualizer({
@@ -19,10 +27,14 @@ export function GazeVisualizer({
   showHeatmap = true,
   showScanpath = true,
   containerRef,
+  ghostMode = false,
 }: GazeVisualizerProps) {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
+    // Skip dimension updates in ghost mode
+    if (ghostMode) return;
+
     const updateDimensions = () => {
       if (containerRef?.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -35,7 +47,10 @@ export function GazeVisualizer({
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
-  }, [containerRef]);
+  }, [containerRef, ghostMode]);
+
+  // GHOST MODE: Return nothing - student sees only the text
+  if (ghostMode) return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40">

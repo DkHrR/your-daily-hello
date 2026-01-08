@@ -285,7 +285,7 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Video Preview */}
+            {/* Video Preview - Mirror fixed with scaleX(-1) */}
             <div className="relative aspect-video rounded-xl overflow-hidden bg-muted">
               <video
                 ref={videoRef}
@@ -293,7 +293,7 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
                 playsInline
                 muted
                 className="w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }} // Mirror correction
+                style={{ transform: 'scaleX(-1)' }} // Mirror fix: Flip video horizontally
               />
               <canvas ref={canvasRef} className="hidden" />
               
