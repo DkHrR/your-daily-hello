@@ -210,6 +210,7 @@ export type Database = {
       parent_student_links: {
         Row: {
           access_code: string
+          expires_at: string
           id: string
           linked_at: string
           linked_by: string
@@ -218,6 +219,7 @@ export type Database = {
         }
         Insert: {
           access_code: string
+          expires_at?: string
           id?: string
           linked_at?: string
           linked_by: string
@@ -226,6 +228,7 @@ export type Database = {
         }
         Update: {
           access_code?: string
+          expires_at?: string
           id?: string
           linked_at?: string
           linked_by?: string
