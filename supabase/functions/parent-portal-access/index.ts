@@ -72,10 +72,10 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (action === 'validate') {
-      // Check if access code exists and is valid
+      // Check if access code exists, is valid, and not expired
       const { data: linkData, error: linkError } = await supabase
         .from('parent_student_links')
-        .select('id, student_id, access_code, parent_id, linked_at')
+        .select('id, student_id, access_code, parent_id, linked_at, expires_at')
         .eq('access_code', accessCode)
         .maybeSingle();
 
@@ -92,6 +92,16 @@ Deno.serve(async (req) => {
         console.log(`Access code validation failed for client: ${clientId}`);
         return new Response(
           JSON.stringify({ valid: false }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if access code has expired
+      const expiresAt = new Date(linkData.expires_at);
+      if (expiresAt < new Date()) {
+        console.log(`Expired access code attempted by client: ${clientId}`);
+        return new Response(
+          JSON.stringify({ valid: false, error: 'Access code has expired' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -124,13 +134,23 @@ Deno.serve(async (req) => {
       // Fetch student and assessment data for parent portal
       const { data: linkData, error: linkError } = await supabase
         .from('parent_student_links')
-        .select('id, student_id, parent_id')
+        .select('id, student_id, parent_id, expires_at')
         .eq('access_code', accessCode)
         .maybeSingle();
 
       if (linkError || !linkData) {
         return new Response(
           JSON.stringify({ error: 'Invalid access code' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if access code has expired
+      const expiresAt = new Date(linkData.expires_at);
+      if (expiresAt < new Date()) {
+        console.log(`Expired access code used for getData by client`);
+        return new Response(
+          JSON.stringify({ error: 'Access code has expired' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
