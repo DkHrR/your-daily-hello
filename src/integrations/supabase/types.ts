@@ -39,7 +39,8 @@ export type Database = {
           overall_risk_level: string | null
           saccade_data: Json | null
           session_id: string
-          student_id: string
+          student_id: string | null
+          user_id: string | null
           voice_avg_pause_duration: number | null
           voice_avg_stall_duration: number | null
           voice_fluency_score: number | null
@@ -74,7 +75,8 @@ export type Database = {
           overall_risk_level?: string | null
           saccade_data?: Json | null
           session_id: string
-          student_id: string
+          student_id?: string | null
+          user_id?: string | null
           voice_avg_pause_duration?: number | null
           voice_avg_stall_duration?: number | null
           voice_fluency_score?: number | null
@@ -109,7 +111,8 @@ export type Database = {
           overall_risk_level?: string | null
           saccade_data?: Json | null
           session_id?: string
-          student_id?: string
+          student_id?: string | null
+          user_id?: string | null
           voice_avg_pause_duration?: number | null
           voice_avg_stall_duration?: number | null
           voice_fluency_score?: number | null

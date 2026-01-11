@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface StudentWithRisk {
   id: string;
@@ -21,7 +22,9 @@ interface DashboardStats {
 
 export function useDashboardData() {
   const { user } = useAuth();
+  const { isIndividual } = useUserRole();
 
+  // Query for students (only for clinicians/educators)
   const studentsQuery = useQuery({
     queryKey: ['students', user?.id],
     queryFn: async () => {
@@ -33,19 +36,37 @@ export function useDashboardData() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !isIndividual,
   });
 
+  // Query for all diagnostic results (for clinicians - student assessments)
   const diagnosticResultsQuery = useQuery({
     queryKey: ['diagnostic_results_dashboard', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('diagnostic_results')
         .select('*')
+        .not('student_id', 'is', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data;
+    },
+    enabled: !!user && !isIndividual,
+  });
+
+  // Query for self-assessments (for individual users)
+  const selfAssessmentsQuery = useQuery({
+    queryKey: ['self_assessments', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('diagnostic_results')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!user,
   });
@@ -98,11 +119,13 @@ export function useDashboardData() {
     students: studentsWithScores,
     stats,
     riskDistribution,
-    isLoading: studentsQuery.isLoading || diagnosticResultsQuery.isLoading,
-    error: studentsQuery.error || diagnosticResultsQuery.error,
+    selfAssessments: selfAssessmentsQuery.data ?? [],
+    isLoading: studentsQuery.isLoading || diagnosticResultsQuery.isLoading || selfAssessmentsQuery.isLoading,
+    error: studentsQuery.error || diagnosticResultsQuery.error || selfAssessmentsQuery.error,
     refetch: () => {
       studentsQuery.refetch();
       diagnosticResultsQuery.refetch();
+      selfAssessmentsQuery.refetch();
     },
   };
 }

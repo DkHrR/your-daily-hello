@@ -11,22 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StudentProgressChart } from '@/components/dashboard/StudentProgressChart';
 import { GazeHeatmapReport } from '@/components/dashboard/GazeHeatmapReport';
+import { AIInsightsPanel } from '@/components/reports/AIInsightsPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useRealTimeNotifications } from '@/hooks/useRealTimeNotifications';
+import { useUserRole } from '@/hooks/useUserRole';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
   ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line
+  Tooltip
 } from 'recharts';
 import { 
   Users, 
@@ -41,14 +36,18 @@ import {
   LogIn,
   Eye,
   BarChart3,
-  Activity
+  Activity,
+  Play,
+  Clock
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user, loading: authLoading, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { students, stats, riskDistribution, isLoading, error, refetch } = useDashboardData();
+  const { students, stats, riskDistribution, isLoading, error, refetch, selfAssessments } = useDashboardData();
+  const { isIndividual, hasClinicianAccess, isLoading: roleLoading } = useUserRole();
   
   // Real-time notifications - will auto-trigger toasts on new results
   useRealTimeNotifications();
@@ -57,6 +56,7 @@ export default function DashboardPage() {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
+  const [selectedAssessment, setSelectedAssessment] = useState<any>(null);
 
   // Handle tab from URL
   useEffect(() => {
@@ -85,25 +85,6 @@ export default function DashboardPage() {
     );
   };
 
-  // Chart data
-  const gradeData = [
-    { grade: 'K', low: 70, moderate: 20, high: 10 },
-    { grade: '1st', low: 65, moderate: 25, high: 10 },
-    { grade: '2nd', low: 60, moderate: 28, high: 12 },
-    { grade: '3rd', low: 68, moderate: 22, high: 10 },
-    { grade: '4th', low: 72, moderate: 20, high: 8 },
-    { grade: '5th', low: 75, moderate: 18, high: 7 },
-  ];
-
-  const trendData = [
-    { month: 'Jan', assessments: 120, identified: 15 },
-    { month: 'Feb', assessments: 145, identified: 18 },
-    { month: 'Mar', assessments: 180, identified: 22 },
-    { month: 'Apr', assessments: 210, identified: 25 },
-    { month: 'May', assessments: 250, identified: 28 },
-    { month: 'Jun', assessments: 190, identified: 20 },
-  ];
-
   // Show login prompt if not authenticated
   if (!authLoading && !user) {
     return (
@@ -121,7 +102,7 @@ export default function DashboardPage() {
               </div>
               <h1 className="text-2xl font-bold mb-4">Sign In Required</h1>
               <p className="text-muted-foreground mb-6">
-                Please sign in to access the dashboard and view student data.
+                Please sign in to access the dashboard and view your data.
               </p>
               <Button variant="hero" onClick={() => navigate('/auth')}>
                 Sign In
@@ -133,6 +114,38 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // Determine dashboard type based on role
+  const dashboardTitle = isIndividual 
+    ? 'Personal' 
+    : hasClinicianAccess 
+      ? 'Clinical' 
+      : 'Personal';
+
+  const dashboardDescription = isIndividual
+    ? 'Your assessment history and insights'
+    : hasClinicianAccess
+      ? 'Student analytics and risk profiles'
+      : 'Your assessment history and insights';
+
+  // Get tabs based on role
+  const getTabs = () => {
+    if (isIndividual) {
+      return [
+        { value: 'overview', label: 'Overview', icon: BarChart3 },
+        { value: 'history', label: 'Assessment History', icon: Clock },
+        { value: 'reports', label: 'Reports & Insights', icon: Eye },
+      ];
+    }
+    return [
+      { value: 'overview', label: 'Overview', icon: BarChart3 },
+      { value: 'students', label: 'Students', icon: Users },
+      { value: 'history', label: 'Assessment History', icon: Activity },
+      { value: 'reports', label: 'Reports', icon: Eye },
+    ];
+  };
+
+  const tabs = getTabs();
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,49 +161,38 @@ export default function DashboardPage() {
           >
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                {profile?.organization === 'School (India K-12)' ? 'School' : 
-                 profile?.organization === 'Pediatrician' ? 'Clinical' : 'Personal'}{' '}
+                {dashboardTitle}{' '}
                 <span className="text-gradient-neuro">Dashboard</span>
               </h1>
               <p className="text-muted-foreground">
-                {profile?.organization === 'School (India K-12)' 
-                  ? 'School-wide analytics and student risk profiles'
-                  : profile?.organization === 'Pediatrician'
-                    ? 'Clinical patient assessments and diagnostic reports'
-                    : 'Your assessment history and progress tracking'}
+                {dashboardDescription}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline">
-                <Download className="w-4 h-4" />
-                Export Data
-              </Button>
-              <Button variant="hero">
-                <FileText className="w-4 h-4" />
-                Generate Report
-              </Button>
+              {selfAssessments.length > 0 && (
+                <Button variant="outline">
+                  <Download className="w-4 h-4" />
+                  Export Data
+                </Button>
+              )}
+              <Link to="/assessment">
+                <Button variant="hero">
+                  <Play className="w-4 h-4" />
+                  {isIndividual ? 'Take Assessment' : 'New Assessment'}
+                </Button>
+              </Link>
             </div>
           </motion.div>
 
           {/* Dashboard Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 max-w-md">
-              <TabsTrigger value="overview" className="gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="students" className="gap-2">
-                <Users className="w-4 h-4" />
-                Students
-              </TabsTrigger>
-              <TabsTrigger value="progress" className="gap-2">
-                <Activity className="w-4 h-4" />
-                Progress
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="gap-2">
-                <Eye className="w-4 h-4" />
-                Reports
-              </TabsTrigger>
+            <TabsList className={`grid w-full max-w-md`} style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
+                  <tab.icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             {/* Overview Tab */}
@@ -200,10 +202,10 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="grid grid-cols-2 md:grid-cols-4 gap-4"
+                className={`grid gap-4 ${isIndividual ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}
               >
-                {isLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
+                {isLoading || roleLoading ? (
+                  Array.from({ length: isIndividual ? 3 : 4 }).map((_, i) => (
                     <Card key={i}>
                       <CardContent className="p-6">
                         <Skeleton className="h-4 w-24 mb-2" />
@@ -211,12 +213,34 @@ export default function DashboardPage() {
                       </CardContent>
                     </Card>
                   ))
-                ) : (
+                ) : isIndividual ? (
+                  // Individual user stats
                   [
-                    { label: 'Total Students', value: stats.totalStudents.toString(), icon: Users, change: '+12%' },
-                    { label: 'Assessments', value: stats.totalAssessments.toString(), icon: FileText, change: '+8%' },
-                    { label: 'High Risk', value: stats.highRiskCount.toString(), icon: AlertTriangle, change: '-5%' },
-                    { label: 'Interventions', value: Math.floor(stats.highRiskCount * 0.7).toString(), icon: TrendingUp, change: '+15%' },
+                    { label: 'Total Assessments', value: selfAssessments.length.toString(), icon: FileText },
+                    { label: 'Latest Risk Level', value: selfAssessments[0]?.overall_risk_level || 'No data', icon: AlertTriangle },
+                    { label: 'Last Assessed', value: selfAssessments[0] ? new Date(selfAssessments[0].created_at).toLocaleDateString() : 'Never', icon: Clock },
+                  ].map((stat) => (
+                    <Card key={stat.label}>
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">{stat.label}</p>
+                            <p className="text-2xl font-bold mt-1 capitalize">{stat.value}</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-primary/10">
+                            <stat.icon className="w-5 h-5 text-primary" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  // Clinician/Educator stats
+                  [
+                    { label: 'Total Students', value: stats.totalStudents.toString(), icon: Users },
+                    { label: 'Assessments', value: stats.totalAssessments.toString(), icon: FileText },
+                    { label: 'High Risk', value: stats.highRiskCount.toString(), icon: AlertTriangle },
+                    { label: 'Interventions', value: Math.floor(stats.highRiskCount * 0.7).toString(), icon: TrendingUp },
                   ].map((stat) => (
                     <Card key={stat.label}>
                       <CardContent className="p-6">
@@ -229,256 +253,319 @@ export default function DashboardPage() {
                             <stat.icon className="w-5 h-5 text-primary" />
                           </div>
                         </div>
-                        <p className={`text-sm mt-2 ${stat.change.startsWith('+') ? 'text-success' : 'text-destructive'}`}>
-                          {stat.change} from last month
-                        </p>
                       </CardContent>
                     </Card>
                   ))
                 )}
               </motion.div>
 
-              {/* Charts Row */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="grid md:grid-cols-3 gap-6"
-              >
-                {/* Risk Distribution Pie */}
+              {/* Risk Distribution - only for clinicians */}
+              {!isIndividual && stats.totalStudents > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Risk Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoading ? (
+                        <Skeleton className="h-[200px] w-full" />
+                      ) : (
+                        <>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                              <Pie
+                                data={riskDistribution}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={80}
+                                dataKey="value"
+                              >
+                                {riskDistribution.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="flex justify-center gap-4 mt-4">
+                            {riskDistribution.map((item) => (
+                              <div key={item.name} className="flex items-center gap-2 text-sm">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                                {item.name}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+
+              {/* Empty state for individual users */}
+              {isIndividual && selfAssessments.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">No Assessments Yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Take your first assessment to see your results and insights here.
+                    </p>
+                    <Link to="/assessment">
+                      <Button variant="hero">
+                        <Play className="w-4 h-4" />
+                        Start Assessment
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Students Tab - Only for clinicians/educators */}
+            {!isIndividual && (
+              <TabsContent value="students">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Risk Distribution</CardTitle>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <CardTitle>Student Risk Profiles</CardTitle>
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search students..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 w-64"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Filter className="w-4 h-4 text-muted-foreground" />
+                          {(['all', 'low', 'medium', 'high'] as const).map((filter) => (
+                            <Button
+                              key={filter}
+                              variant={selectedFilter === filter ? 'default' : 'ghost'}
+                              size="sm"
+                              onClick={() => setSelectedFilter(filter)}
+                            >
+                              {filter === 'medium' ? 'Moderate' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {isLoading ? (
-                      <Skeleton className="h-[200px] w-full" />
+                      <div className="space-y-4">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Skeleton key={i} className="h-12 w-full" />
+                        ))}
+                      </div>
+                    ) : filteredStudents.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        {students.length === 0 
+                          ? "No students found. Add students to get started."
+                          : "No students match your search criteria."
+                        }
+                      </div>
                     ) : (
-                      <>
-                        <ResponsiveContainer width="100%" height={200}>
-                          <PieChart>
-                            <Pie
-                              data={riskDistribution}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={50}
-                              outerRadius={80}
-                              dataKey="value"
-                            >
-                              {riskDistribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="flex justify-center gap-4 mt-4">
-                          {riskDistribution.map((item) => (
-                            <div key={item.name} className="flex items-center gap-2 text-sm">
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                              {item.name}
-                            </div>
-                          ))}
-                        </div>
-                      </>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-border">
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Grade</th>
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Risk Level</th>
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Score</th>
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Last Assessed</th>
+                              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredStudents.map((student) => (
+                              <tr key={student.id} className="border-b border-border hover:bg-muted/50">
+                                <td className="py-3 px-4 font-medium">{student.name}</td>
+                                <td className="py-3 px-4">{student.grade}</td>
+                                <td className="py-3 px-4">{getRiskBadge(student.risk)}</td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 h-2 rounded-full bg-muted">
+                                      <div
+                                        className={`h-full rounded-full ${
+                                          student.risk === 'high' 
+                                            ? 'bg-destructive' 
+                                            : student.risk === 'medium'
+                                              ? 'bg-warning'
+                                              : 'bg-success'
+                                        }`}
+                                        style={{ width: `${Math.min(student.score, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-sm">{Math.round(student.score)}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-muted-foreground">{student.lastAssessed}</td>
+                                <td className="py-3 px-4">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => setSelectedStudent(student.id)}
+                                  >
+                                    View Report
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+            )}
 
-                {/* Grade Distribution Bar */}
-                <Card className="md:col-span-2">
-                  <CardHeader>
-                    <CardTitle>Risk by Grade Level</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={gradeData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="grade" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <Tooltip 
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Bar dataKey="low" stackId="a" fill="hsl(var(--success))" />
-                        <Bar dataKey="moderate" stackId="a" fill="hsl(var(--warning))" />
-                        <Bar dataKey="high" stackId="a" fill="hsl(var(--destructive))" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.div>
-
-              {/* Trend Line Chart */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Assessment Trends</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <LineChart data={trendData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                        <Tooltip 
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="assessments" 
-                          stroke="hsl(var(--primary))" 
-                          strokeWidth={2}
-                          dot={{ fill: 'hsl(var(--primary))' }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="identified" 
-                          stroke="hsl(var(--destructive))" 
-                          strokeWidth={2}
-                          dot={{ fill: 'hsl(var(--destructive))' }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                    <div className="flex justify-center gap-6 mt-4">
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-3 h-3 rounded-full bg-primary" />
-                        Total Assessments
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-3 h-3 rounded-full bg-destructive" />
-                        High Risk Identified
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </TabsContent>
-
-            {/* Students Tab */}
-            <TabsContent value="students">
+            {/* Assessment History Tab */}
+            <TabsContent value="history">
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <CardTitle>Student Risk Profiles</CardTitle>
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Search students..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10 w-64"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Filter className="w-4 h-4 text-muted-foreground" />
-                        {(['all', 'low', 'medium', 'high'] as const).map((filter) => (
-                          <Button
-                            key={filter}
-                            variant={selectedFilter === filter ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setSelectedFilter(filter)}
-                          >
-                            {filter === 'medium' ? 'Moderate' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <CardTitle>Assessment History</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? (
                     <div className="space-y-4">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Skeleton key={i} className="h-12 w-full" />
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20 w-full" />
                       ))}
                     </div>
-                  ) : filteredStudents.length === 0 ? (
+                  ) : selfAssessments.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground">
-                      {students.length === 0 
-                        ? "No students found. Add students to get started."
-                        : "No students match your search criteria."
-                      }
+                      <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>No assessment history yet.</p>
+                      <Link to="/assessment" className="text-primary hover:underline mt-2 inline-block">
+                        Take your first assessment
+                      </Link>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Grade</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Risk Level</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Score</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Last Assessed</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredStudents.map((student) => (
-                            <tr key={student.id} className="border-b border-border hover:bg-muted/50">
-                              <td className="py-3 px-4 font-medium">{student.name}</td>
-                              <td className="py-3 px-4">{student.grade}</td>
-                              <td className="py-3 px-4">{getRiskBadge(student.risk)}</td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-16 h-2 rounded-full bg-muted">
-                                    <div
-                                      className={`h-full rounded-full ${
-                                        student.risk === 'high' 
-                                          ? 'bg-destructive' 
-                                          : student.risk === 'medium'
-                                            ? 'bg-warning'
-                                            : 'bg-success'
-                                      }`}
-                                      style={{ width: `${Math.min(student.score * 100, 100)}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-sm">{Math.round(student.score * 100)}%</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-muted-foreground">{student.lastAssessed}</td>
-                              <td className="py-3 px-4">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => setSelectedStudent(student.id)}
-                                >
-                                  View Report
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="space-y-4">
+                      {selfAssessments.map((assessment: any) => (
+                        <div 
+                          key={assessment.id}
+                          className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                            selectedAssessment?.id === assessment.id 
+                              ? 'border-primary bg-primary/5' 
+                              : 'border-border hover:bg-muted/50'
+                          }`}
+                          onClick={() => setSelectedAssessment(assessment)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">
+                                Session: {assessment.session_id}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(assessment.created_at).toLocaleDateString('en-IN', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <p className="text-sm text-muted-foreground">Dyslexia Index</p>
+                                <p className="font-bold">
+                                  {(assessment.dyslexia_probability_index * 100).toFixed(0)}%
+                                </p>
+                              </div>
+                              {getRiskBadge(assessment.overall_risk_level || 'low')}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CardContent>
               </Card>
+              
+              {/* Show longitudinal progress chart for clinicians */}
+              {!isIndividual && <StudentProgressChart />}
             </TabsContent>
 
-            {/* Progress Tab - Longitudinal Tracking */}
-            <TabsContent value="progress">
-              <StudentProgressChart />
-            </TabsContent>
-
-            {/* Reports Tab - Gaze Heatmaps */}
-            <TabsContent value="reports">
-              <GazeHeatmapReport 
-                fixations={[]}
-                saccades={[]}
-              />
+            {/* Reports Tab */}
+            <TabsContent value="reports" className="space-y-6">
+              {selectedAssessment ? (
+                <>
+                  <GazeHeatmapReport 
+                    fixations={selectedAssessment.fixation_data || []}
+                    saccades={selectedAssessment.saccade_data || []}
+                  />
+                  <AIInsightsPanel 
+                    diagnosticResult={{
+                      dyslexiaProbabilityIndex: selectedAssessment.dyslexia_probability_index,
+                      adhdProbabilityIndex: selectedAssessment.adhd_probability_index,
+                      dysgraphiaProbabilityIndex: selectedAssessment.dysgraphia_probability_index,
+                      overallRiskLevel: selectedAssessment.overall_risk_level,
+                      eyeTracking: {
+                        chaosIndex: selectedAssessment.eye_chaos_index,
+                        regressionCount: selectedAssessment.eye_regression_count,
+                        averageFixationDuration: selectedAssessment.eye_avg_fixation_duration,
+                      },
+                      voice: {
+                        fluencyScore: selectedAssessment.voice_fluency_score,
+                        wordsPerMinute: selectedAssessment.voice_words_per_minute,
+                        stallCount: selectedAssessment.voice_stall_count,
+                      }
+                    }}
+                  />
+                </>
+              ) : selfAssessments.length > 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Eye className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Select an Assessment</h3>
+                    <p className="text-muted-foreground">
+                      Choose an assessment from the History tab to view detailed reports and AI insights.
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={() => {
+                        setSelectedAssessment(selfAssessments[0]);
+                        setActiveTab('history');
+                      }}
+                    >
+                      View Latest Assessment
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">No Reports Available</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Complete an assessment to generate detailed reports and AI-powered insights.
+                    </p>
+                    <Link to="/assessment">
+                      <Button variant="hero">
+                        <Play className="w-4 h-4" />
+                        Start Assessment
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>
