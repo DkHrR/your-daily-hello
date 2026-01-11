@@ -76,7 +76,8 @@ export type Database = {
           id: string
           started_at: string | null
           status: Database["public"]["Enums"]["assessment_status"]
-          student_id: string
+          student_id: string | null
+          user_id: string | null
         }
         Insert: {
           assessment_type?: Database["public"]["Enums"]["assessment_type"]
@@ -86,7 +87,8 @@ export type Database = {
           id?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["assessment_status"]
-          student_id: string
+          student_id?: string | null
+          user_id?: string | null
         }
         Update: {
           assessment_type?: Database["public"]["Enums"]["assessment_type"]
@@ -96,7 +98,8 @@ export type Database = {
           id?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["assessment_status"]
-          student_id?: string
+          student_id?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -375,6 +378,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_assessment_count: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

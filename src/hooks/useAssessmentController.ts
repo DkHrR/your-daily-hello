@@ -4,6 +4,7 @@ import { useSpeechRecognition } from './useSpeechRecognition';
 import { useCognitiveLoad } from './useCognitiveLoad';
 import { useHandwritingAnalysis } from './useHandwritingAnalysis';
 import { useDiagnosticEngine } from './useDiagnosticEngine';
+import { useAuth } from '@/contexts/AuthContext';
 import logger from '@/lib/logger';
 import type { 
   DiagnosticResult, 
@@ -50,6 +51,9 @@ interface UseAssessmentControllerOptions {
 
 export function useAssessmentController(options: UseAssessmentControllerOptions = {}) {
   const { studentId, onComplete } = options;
+  
+  // Auth hook for self-assessments
+  const { user } = useAuth();
   
   // All the hooks - using unified MediaPipe eye tracking
   const eyeTracking = useUnifiedEyeTracking();
@@ -166,17 +170,18 @@ export function useAssessmentController(options: UseAssessmentControllerOptions 
     
     setResult(diagnosticResult);
     
-    // Save to database if we have an assessment ID (passed as studentId for now)
-    // In a full implementation, you would create an assessment first
-    if (studentId) {
+    // Save to database for authenticated users
+    // Works for both clinician assessments (with studentId) and self-assessments (without studentId)
+    if (user) {
       try {
         await diagnosticEngine.saveDiagnosticResult(
-          studentId,
+          studentId || null,  // null for self-assessments
           diagnosticResult.sessionId,
           diagnosticResult,
           eyeTracking.fixations,
           eyeTracking.saccades
         );
+        logger.info('Diagnostic result saved successfully');
       } catch (error) {
         logger.error('Failed to save diagnostic result', error);
       }
@@ -195,6 +200,7 @@ export function useAssessmentController(options: UseAssessmentControllerOptions 
     cognitiveLoad,
     diagnosticEngine,
     studentId,
+    user,
     onComplete
   ]);
   

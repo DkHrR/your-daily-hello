@@ -510,6 +510,23 @@ export default function DashboardPage() {
                     fixations={(selectedAssessment.assessment_results?.[0]?.raw_data as any)?.fixations || []}
                     saccades={(selectedAssessment.assessment_results?.[0]?.raw_data as any)?.saccades || []}
                   />
+                  
+                  {/* AI Insights Panel with real data */}
+                  <AIInsightsPanel 
+                    diagnosticResult={{
+                      dyslexiaProbabilityIndex: selectedAssessment.assessment_results?.[0]?.dyslexia_biomarkers?.dyslexia_probability_index ?? 0,
+                      adhdProbabilityIndex: selectedAssessment.assessment_results?.[0]?.dyslexia_biomarkers?.adhd_probability_index ?? 0,
+                      dysgraphiaProbabilityIndex: selectedAssessment.assessment_results?.[0]?.dyslexia_biomarkers?.dysgraphia_probability_index ?? 0,
+                      overallRiskLevel: selectedAssessment.assessment_results?.[0]?.dyslexia_biomarkers?.overall_risk_level ?? 'low',
+                      eyeTracking: (selectedAssessment.assessment_results?.[0]?.raw_data as any)?.eyeTracking ?? {},
+                      voice: (selectedAssessment.assessment_results?.[0]?.raw_data as any)?.voice ?? {},
+                      handwriting: (selectedAssessment.assessment_results?.[0]?.raw_data as any)?.handwriting ?? {},
+                      cognitiveLoad: (selectedAssessment.assessment_results?.[0]?.raw_data as any)?.cognitiveLoad ?? {},
+                      timestamp: new Date(selectedAssessment.created_at),
+                      sessionId: selectedAssessment.assessment_results?.[0]?.dyslexia_biomarkers?.session_id ?? ''
+                    }}
+                  />
+                  
                   <Card>
                     <CardHeader>
                       <CardTitle>Assessment Details</CardTitle>
