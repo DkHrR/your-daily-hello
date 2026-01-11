@@ -12,7 +12,8 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Info
 } from 'lucide-react';
 
 interface BiometricPreCheckProps {
@@ -38,8 +39,8 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
   });
   const [allChecksPassed, setAllChecksPassed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [luminosityValue, setLuminosityValue] = useState<number>(0);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const faceDetectionRef = useRef<any>(null);
 
   const startCamera = useCallback(async () => {
     try {
@@ -62,6 +63,7 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
     }
   }, []);
 
+  // Fixed luminosity check - requires good lighting (brightness between 40-220)
   const checkLuminosity = useCallback(() => {
     if (!canvasRef.current || !videoRef.current) return false;
     
@@ -78,15 +80,19 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
     const data = imageData.data;
     
     for (let i = 0; i < data.length; i += 4) {
+      // Standard luminosity formula
       totalBrightness += (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
     }
     
     const avgBrightness = totalBrightness / (data.length / 4);
+    setLuminosityValue(Math.round(avgBrightness));
     
-    // India-standard lighting threshold (slightly lower for varied conditions)
-    return avgBrightness >= 45;
+    // FIXED: Accept brightness between 40-220 (not too dark, not too bright)
+    // This allows normal room lighting while rejecting very dark or overexposed conditions
+    return avgBrightness >= 40 && avgBrightness <= 220;
   }, []);
 
+  // Improved focus check with lower threshold
   const checkCameraFocus = useCallback(() => {
     if (!canvasRef.current || !videoRef.current) return false;
     
@@ -97,7 +103,6 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
     const imageData = ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
     
     // Calculate Laplacian variance for focus detection
-    let laplacianVariance = 0;
     const width = canvasRef.current.width;
     const height = canvasRef.current.height;
     const data = imageData.data;
@@ -122,12 +127,13 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
       }
     }
     
-    laplacianVariance = sumLaplacian / count;
+    const laplacianVariance = sumLaplacian / count;
     
-    // Higher variance = sharper image
-    return laplacianVariance > 100;
+    // Lower threshold for better acceptance
+    return laplacianVariance > 50;
   }, []);
 
+  // Improved face detection using edge detection and motion instead of skin tone
   const detectFace = useCallback(async () => {
     if (!canvasRef.current || !videoRef.current) {
       return { detected: false, centered: false, distanceOk: false };
@@ -138,47 +144,56 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
     
     ctx.drawImage(videoRef.current, 0, 0);
     
-    // Use simple face detection via canvas analysis
-    // In a full implementation, we'd use the Face Mesh here
     const width = canvasRef.current.width;
     const height = canvasRef.current.height;
     
-    // Analyze center region for skin-tone pixels (simplified face detection)
+    // Analyze center region for contrast and edges (more reliable than skin tone)
     const centerX = width / 2;
     const centerY = height / 2;
-    const regionSize = Math.min(width, height) * 0.3;
+    const regionSize = Math.min(width, height) * 0.4;
     
     const imageData = ctx.getImageData(
-      centerX - regionSize / 2,
-      centerY - regionSize / 2,
-      regionSize,
-      regionSize
+      Math.max(0, centerX - regionSize / 2),
+      Math.max(0, centerY - regionSize / 2),
+      Math.min(regionSize, width),
+      Math.min(regionSize, height)
     );
     
-    let skinTonePixels = 0;
     const data = imageData.data;
     
+    // Calculate variance in the center region (faces have texture/variation)
+    let sum = 0;
+    let sumSq = 0;
+    const pixelCount = data.length / 4;
+    
     for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      
-      // Skin tone detection (works across various skin tones)
-      if (r > 60 && g > 40 && b > 20 && 
-          r > b && (r - g) < 80 && 
-          Math.abs(r - g) < 50) {
-        skinTonePixels++;
+      const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      sum += gray;
+      sumSq += gray * gray;
+    }
+    
+    const mean = sum / pixelCount;
+    const variance = (sumSq / pixelCount) - (mean * mean);
+    
+    // Faces typically have variance between 200-3000
+    // Very low variance = blank wall, very high = noise
+    const detected = variance > 150 && variance < 5000;
+    
+    // Check if there's activity in the center (person present)
+    // Count pixels that differ from the mean significantly
+    let activePixels = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      if (Math.abs(gray - mean) > 30) {
+        activePixels++;
       }
     }
     
-    const skinToneRatio = skinTonePixels / (data.length / 4);
-    const detected = skinToneRatio > 0.15;
-    const centered = skinToneRatio > 0.25;
+    const activityRatio = activePixels / pixelCount;
+    const centered = activityRatio > 0.2 && activityRatio < 0.8;
     
-    // Estimate face size for distance check
-    const faceSize = skinToneRatio * regionSize;
-    const optimalSize = regionSize * 0.5;
-    const distanceOk = faceSize > optimalSize * 0.6 && faceSize < optimalSize * 1.4;
+    // Distance check based on the spread of active pixels
+    const distanceOk = activityRatio > 0.15 && activityRatio < 0.7;
     
     return { detected, centered, distanceOk };
   }, []);
@@ -257,11 +272,23 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
     }
   };
 
+  const getLuminosityTip = () => {
+    if (luminosityValue < 40) return 'Too dark - add more light';
+    if (luminosityValue > 220) return 'Too bright - reduce glare';
+    return 'Good lighting';
+  };
+
   const checks = [
-    { key: 'luminosity', label: 'Room Lighting', icon: Sun, tip: 'Ensure adequate lighting' },
-    { key: 'cameraFocus', label: 'Camera Focus', icon: Focus, tip: 'Clean camera lens' },
-    { key: 'facePosition', label: 'Face Centered', icon: User, tip: 'Position face in center' },
-    { key: 'faceDistance', label: 'Distance (50-60cm)', icon: Ruler, tip: 'Move closer/further' },
+    { 
+      key: 'luminosity', 
+      label: 'Room Lighting', 
+      icon: Sun, 
+      tip: getLuminosityTip(),
+      extra: luminosityValue > 0 ? `(${luminosityValue}/255)` : ''
+    },
+    { key: 'cameraFocus', label: 'Camera Focus', icon: Focus, tip: 'Keep camera steady' },
+    { key: 'facePosition', label: 'Face Centered', icon: User, tip: 'Position face in the oval' },
+    { key: 'faceDistance', label: 'Distance (50-60cm)', icon: Ruler, tip: 'Move closer or further' },
   ];
 
   const passedCount = Object.values(checkStatus).filter(s => s === 'pass').length;
@@ -355,7 +382,10 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
                   >
                     <check.icon className="w-5 h-5 text-muted-foreground" />
                     <div className="flex-1">
-                      <p className="font-medium">{check.label}</p>
+                      <p className="font-medium">
+                        {check.label} 
+                        {check.extra && <span className="text-xs text-muted-foreground ml-1">{check.extra}</span>}
+                      </p>
                       {checkStatus[check.key as keyof CheckStatus] === 'fail' && (
                         <p className="text-xs text-muted-foreground">{check.tip}</p>
                       )}
@@ -363,6 +393,19 @@ export function BiometricPreCheck({ onReady }: BiometricPreCheckProps) {
                     {getStatusIcon(checkStatus[check.key as keyof CheckStatus])}
                   </div>
                 ))}
+              </div>
+              
+              {/* Lighting tips */}
+              <div className="p-3 rounded-lg bg-muted/50 text-sm">
+                <div className="flex items-start gap-2">
+                  <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-foreground">Lighting Tips</p>
+                    <p className="text-muted-foreground text-xs mt-1">
+                      Face a light source (window or lamp). Avoid backlighting and direct sunlight glare.
+                    </p>
+                  </div>
+                </div>
               </div>
               
               <div className="pt-4 space-y-3">

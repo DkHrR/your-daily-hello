@@ -39,12 +39,18 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
+            <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-foreground transition-colors">Documentation</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Research</a></li>
+              <li>
+                <a 
+                  href="mailto:noreply.nueroread@gmail.com" 
+                  className="hover:text-foreground transition-colors"
+                >
+                  noreply.nueroread@gmail.com
+                </a>
+              </li>
               <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">HIPAA Compliance</a></li>
+              <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
             </ul>
           </div>
         </div>

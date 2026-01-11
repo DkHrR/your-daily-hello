@@ -185,7 +185,7 @@ export function useDiagnosticEngine() {
 
   // Save diagnostic result to database via diagnostic_results table
   const saveDiagnosticResult = useCallback(async (
-    studentId: string,
+    studentId: string | null,  // Can be null for self-assessments
     sessionId: string,
     result: DiagnosticResult,
     fixations: Fixation[],
@@ -193,8 +193,10 @@ export function useDiagnosticEngine() {
   ) => {
     if (!user) throw new Error('User not authenticated');
 
-    // Validate student ID
-    z.string().uuid('Invalid student ID').parse(studentId);
+    // Validate student ID if provided
+    if (studentId) {
+      z.string().uuid('Invalid student ID').parse(studentId);
+    }
     
     // Validate session ID length
     z.string().max(50, 'Session ID too long').parse(sessionId);
@@ -223,45 +225,44 @@ export function useDiagnosticEngine() {
     const clampScore = (score: number) => Math.min(100, Math.max(0, Math.round(score)));
 
     // Save to diagnostic_results table (matches actual schema)
+    const insertData: any = {
+      clinician_id: user.id,
+      session_id: sessionId,
+      user_id: user.id,
+      student_id: studentId || null,
+      overall_risk_level: result.overallRiskLevel,
+      dyslexia_probability_index: result.dyslexiaProbabilityIndex,
+      adhd_probability_index: result.adhdProbabilityIndex,
+      dysgraphia_probability_index: result.dysgraphiaProbabilityIndex,
+      eye_total_fixations: safeFixations.length,
+      eye_avg_fixation_duration: result.eyeTracking.averageFixationDuration,
+      eye_regression_count: result.eyeTracking.regressionCount,
+      eye_prolonged_fixations: result.eyeTracking.prolongedFixations,
+      eye_chaos_index: result.eyeTracking.chaosIndex,
+      eye_fixation_intersection_coefficient: result.eyeTracking.fixationIntersectionCoefficient,
+      fixation_data: safeFixations,
+      saccade_data: safeSaccades,
+      voice_fluency_score: clampScore(result.voice.fluencyScore),
+      voice_prosody_score: clampScore(result.voice.prosodyScore),
+      voice_words_per_minute: result.voice.wordsPerMinute,
+      voice_pause_count: result.voice.pauseCount || 0,
+      voice_avg_pause_duration: result.voice.averagePauseDuration || 0,
+      voice_phonemic_errors: result.voice.phonemicErrors,
+      voice_stall_count: result.voice.stallCount || 0,
+      voice_avg_stall_duration: result.voice.averageStallDuration || 0,
+      voice_stall_events: (result.voice.stallEvents || []) as unknown as any[],
+      handwriting_reversal_count: result.handwriting.reversalCount,
+      handwriting_letter_crowding: result.handwriting.letterCrowding,
+      handwriting_graphic_inconsistency: result.handwriting.graphicInconsistency,
+      handwriting_line_adherence: result.handwriting.lineAdherence,
+      cognitive_avg_pupil_dilation: result.cognitiveLoad.averagePupilDilation || 0,
+      cognitive_overload_events: result.cognitiveLoad.overloadEvents,
+      cognitive_stress_indicators: result.cognitiveLoad.stressIndicators,
+    };
+
     const { error: resultError } = await supabase
       .from('diagnostic_results')
-      .insert([{
-        student_id: studentId,
-        clinician_id: user.id,
-        session_id: sessionId,
-        overall_risk_level: result.overallRiskLevel,
-        dyslexia_probability_index: result.dyslexiaProbabilityIndex,
-        adhd_probability_index: result.adhdProbabilityIndex,
-        dysgraphia_probability_index: result.dysgraphiaProbabilityIndex,
-        // Eye tracking metrics
-        eye_total_fixations: safeFixations.length,
-        eye_avg_fixation_duration: result.eyeTracking.averageFixationDuration,
-        eye_regression_count: result.eyeTracking.regressionCount,
-        eye_prolonged_fixations: result.eyeTracking.prolongedFixations,
-        eye_chaos_index: result.eyeTracking.chaosIndex,
-        eye_fixation_intersection_coefficient: result.eyeTracking.fixationIntersectionCoefficient,
-        fixation_data: safeFixations,
-        saccade_data: safeSaccades,
-        // Voice metrics
-        voice_fluency_score: clampScore(result.voice.fluencyScore),
-        voice_prosody_score: clampScore(result.voice.prosodyScore),
-        voice_words_per_minute: result.voice.wordsPerMinute,
-        voice_pause_count: result.voice.pauseCount || 0,
-        voice_avg_pause_duration: result.voice.averagePauseDuration || 0,
-        voice_phonemic_errors: result.voice.phonemicErrors,
-        voice_stall_count: result.voice.stallCount || 0,
-        voice_avg_stall_duration: result.voice.averageStallDuration || 0,
-        voice_stall_events: (result.voice.stallEvents || []) as unknown as any[],
-        // Handwriting metrics
-        handwriting_reversal_count: result.handwriting.reversalCount,
-        handwriting_letter_crowding: result.handwriting.letterCrowding,
-        handwriting_graphic_inconsistency: result.handwriting.graphicInconsistency,
-        handwriting_line_adherence: result.handwriting.lineAdherence,
-        // Cognitive metrics
-        cognitive_avg_pupil_dilation: result.cognitiveLoad.averagePupilDilation || 0,
-        cognitive_overload_events: result.cognitiveLoad.overloadEvents,
-        cognitive_stress_indicators: result.cognitiveLoad.stressIndicators,
-      }]);
+      .insert([insertData]);
 
     if (resultError) throw resultError;
 
