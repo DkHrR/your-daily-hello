@@ -18,14 +18,12 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        // Query assessment_results table (the actual table in the schema)
-        const { count: totalCount, error } = await supabase
-          .from('assessment_results')
-          .select('*', { count: 'exact', head: true });
+        // Use the secure RPC function to get count (bypasses RLS securely)
+        const { data, error } = await supabase.rpc('get_assessment_count');
         
-        if (!error && totalCount !== null) {
-          setCount(totalCount);
-          previousCount.current = totalCount;
+        if (!error && data !== null) {
+          setCount(data);
+          previousCount.current = data;
         }
       } catch {
         // Silently handle count fetch errors - non-critical for user experience

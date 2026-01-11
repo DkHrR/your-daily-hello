@@ -225,11 +225,14 @@ export function useDiagnosticEngine() {
     const clampScore = (score: number) => Math.min(100, Math.max(0, Math.round(score)));
 
     // Create assessment record first (required for assessment_results)
+    // For self-assessments: student_id is null, user_id is set
+    // For clinician assessments: student_id is set, user_id is null
     const { data: assessment, error: assessmentError } = await supabase
       .from('assessments')
       .insert({
         assessor_id: user.id,
-        student_id: studentId || user.id, // Use user's own ID for self-assessments
+        student_id: studentId,  // null for self-assessments (now allowed)
+        user_id: studentId ? null : user.id,  // set for self-assessments
         assessment_type: 'comprehensive',
         status: 'completed',
         started_at: new Date().toISOString(),

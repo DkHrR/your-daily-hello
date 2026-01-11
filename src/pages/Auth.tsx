@@ -26,7 +26,7 @@ type UserRole = 'individual' | 'school' | 'pediatrician';
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { user, signIn, signUp, signInWithMagicLink, signInWithGoogle, resetPassword, loading, profile } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle, resetPassword, loading, profile } = useAuth();
   const { hasAnyRole, setRole, isSettingRole, isLoading: isRoleLoading } = useUserRole();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,20 +143,6 @@ export default function AuthPage() {
     } else {
       toast.success('Account created! Please select your role.');
       // Role selection will trigger via useEffect
-    }
-  };
-
-  const handleMagicLink = async () => {
-    if (!validateEmail(email)) return;
-    
-    setIsSubmitting(true);
-    const { error } = await signInWithMagicLink(email);
-    setIsSubmitting(false);
-    
-    if (error) {
-      toast.error(error.message || 'Failed to send magic link');
-    } else {
-      toast.success('Check your email for the login link!');
     }
   };
 
