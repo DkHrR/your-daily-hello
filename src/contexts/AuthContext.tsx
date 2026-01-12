@@ -5,9 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 // Profile interface matching the actual profiles table schema
 interface Profile {
   id: string;
-  email: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
+  user_id: string;
+  display_name: string | null;
+  title: string | null;
   organization: string | null;
   created_at: string;
   updated_at: string;
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
     
     if (!error && data) {
@@ -87,7 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailRedirectTo: redirectUrl,
         data: {
           display_name: displayName || email.split('@')[0],
-          full_name: displayName || email.split('@')[0]
         }
       }
     });

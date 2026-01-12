@@ -50,7 +50,7 @@ export function useBackgroundSync() {
     setState(prev => ({ ...prev, queueStats: stats }));
   }, []);
 
-  // Process a single sync job - save to assessment_results table via assessments
+  // Process a single sync job - save to diagnostic_results table directly
   const processJob = useCallback(async (job: SyncQueueItem): Promise<boolean> => {
     setState(prev => ({ ...prev, currentJob: job.id }));
     
@@ -59,56 +59,34 @@ export function useBackgroundSync() {
       if (job.type === 'assessment_result' || job.type === 'result' || job.type === 'student') {
         const data = job.data;
         
-        if (data.studentId && user) {
-          // First, create or find an assessment for this student
-          const { data: assessment, error: assessmentError } = await supabase
-            .from('assessments')
-            .insert({
-              student_id: data.studentId,
-              assessor_id: user.id,
-              assessment_type: 'comprehensive',
-              status: 'completed',
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-            })
-            .select()
-            .single();
+        if (user) {
+          // Generate session ID
+          const sessionId = `NRX-${Date.now().toString(36).toUpperCase()}`;
+          
+          // Calculate risk score
+          const riskScore = data.results?.overallRiskLevel === 'high' ? 0.8 : 
+                            data.results?.overallRiskLevel === 'medium' ? 0.5 : 0.2;
 
-          if (assessmentError) throw assessmentError;
-
-          // Then create the assessment result
+          // Insert directly into diagnostic_results
           const { error: resultError } = await supabase
-            .from('assessment_results')
+            .from('diagnostic_results')
             .insert({
-              assessment_id: assessment.id,
-              overall_risk_score: data.results?.overallRiskLevel === 'high' ? 80 : 
-                                  data.results?.overallRiskLevel === 'medium' ? 50 : 20,
-              reading_fluency_score: data.results?.readingFluency || 0,
-              phonological_awareness_score: data.results?.phonologicalScore || 0,
-              attention_score: data.results?.attentionScore || 0,
-              visual_processing_score: data.results?.visualScore || 0,
-              raw_data: {
-                eyeTracking: data.eyeTrackingData || {},
-                syncedAt: new Date().toISOString(),
-              },
+              clinician_id: user.id,
+              user_id: data.studentId ? null : user.id, // self-assessment if no student
+              student_id: data.studentId || null,
+              session_id: sessionId,
+              dyslexia_probability_index: riskScore,
+              overall_risk_level: data.results?.overallRiskLevel || 'low',
+              voice_fluency_score: data.results?.readingFluency || 0,
+              voice_words_per_minute: data.eyeTrackingData?.readingSpeedWpm || 0,
+              eye_chaos_index: data.eyeTrackingData?.chaosIndex || 0,
+              eye_regression_count: data.eyeTrackingData?.regressionCount || 0,
+              eye_avg_fixation_duration: data.eyeTrackingData?.avgFixationDuration || 0,
+              fixation_data: data.eyeTrackingData?.fixations || [],
+              saccade_data: data.eyeTrackingData?.saccades || [],
             });
 
           if (resultError) throw resultError;
-
-          // If there's eye tracking data, save it
-          if (data.eyeTrackingData) {
-            await supabase
-              .from('eye_tracking_data')
-              .insert({
-                assessment_id: assessment.id,
-                fixation_points: data.eyeTrackingData?.fixations || [],
-                saccade_patterns: data.eyeTrackingData?.saccades || [],
-                saccade_count: data.eyeTrackingData?.saccadeCount || 0,
-                regression_count: data.eyeTrackingData?.regressionCount || 0,
-                average_fixation_duration: data.eyeTrackingData?.avgFixationDuration || 0,
-                reading_speed_wpm: data.eyeTrackingData?.readingSpeedWpm || 0,
-              });
-          }
         }
         
         return true;
@@ -117,7 +95,6 @@ export function useBackgroundSync() {
       logger.warn('Unknown sync job type', { type: job.type });
       return true; // Remove unknown jobs
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error(`Sync job failed`, error, { jobId: job.id });
       throw error;
     } finally {

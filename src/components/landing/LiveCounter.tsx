@@ -18,12 +18,14 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        // Use the secure RPC function to get count (bypasses RLS securely)
-        const { data, error } = await supabase.rpc('get_assessment_count');
+        // Count diagnostic_results directly
+        const { count: totalCount, error } = await supabase
+          .from('diagnostic_results')
+          .select('*', { count: 'exact', head: true });
         
-        if (!error && data !== null) {
-          setCount(data);
-          previousCount.current = data;
+        if (!error && totalCount !== null) {
+          setCount(totalCount);
+          previousCount.current = totalCount;
         }
       } catch {
         // Silently handle count fetch errors - non-critical for user experience
@@ -34,7 +36,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
 
     fetchCount();
 
-    // Subscribe to real-time updates on assessment_results
+    // Subscribe to real-time updates on diagnostic_results
     const channel = supabase
       .channel('assessment-counter')
       .on(
@@ -42,7 +44,7 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'assessment_results'
+          table: 'diagnostic_results'
         },
         () => {
           setCount(prev => prev + 1);
