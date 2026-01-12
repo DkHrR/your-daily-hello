@@ -5,28 +5,24 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import type { Tables } from '@/integrations/supabase/types';
 
-// Use the actual assessment_results table type
-type AssessmentResult = Tables<'assessment_results'>;
+// Use the actual diagnostic_results table type
+type DiagnosticResultRow = Tables<'diagnostic_results'>;
 
 // Zod schemas for assessment input validation
-const scoreSchema = z.number().min(0).max(100).optional();
+const scoreSchema = z.number().min(0).max(1).optional();
 
-const assessmentResultsSchema = z.object({
-  overall_risk_score: scoreSchema,
-  reading_fluency_score: scoreSchema,
-  phonological_awareness_score: scoreSchema,
-  attention_score: scoreSchema,
-  visual_processing_score: scoreSchema,
+const diagnosticResultSchema = z.object({
+  dyslexia_probability_index: scoreSchema,
+  adhd_probability_index: scoreSchema,
+  dysgraphia_probability_index: scoreSchema,
+  overall_risk_level: z.enum(['low', 'moderate', 'high']).optional(),
 });
 
-export interface AssessmentResultWithStudent extends AssessmentResult {
-  assessments: {
-    student_id: string;
-    students: {
-      first_name: string;
-      last_name: string;
-      grade_level: string | null;
-    } | null;
+export interface DiagnosticResultWithStudent extends DiagnosticResultRow {
+  students: {
+    name: string;
+    grade: string;
+    age: number;
   } | null;
 }
 
@@ -34,69 +30,69 @@ export function useAssessments() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all assessment results with student info via assessments table
+  // Fetch all diagnostic results with student info
   const assessmentsQuery = useQuery({
-    queryKey: ['assessment_results', user?.id],
+    queryKey: ['diagnostic_results', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('assessment_results')
+        .from('diagnostic_results')
         .select(`
           *,
-          assessments!inner (
-            student_id,
-            assessor_id,
-            students (first_name, last_name, grade_level)
-          )
+          students (name, grade, age)
         `)
+        .eq('clinician_id', user!.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data ?? []) as unknown as AssessmentResultWithStudent[];
+      return (data ?? []) as unknown as DiagnosticResultWithStudent[];
     },
     enabled: !!user,
   });
 
-  // Create new assessment result - requires an existing assessment
-  const createAssessmentResult = useMutation({
+  // Create new diagnostic result
+  const createDiagnosticResult = useMutation({
     mutationFn: async (input: {
-      assessment_id: string;
+      student_id?: string;
+      session_id: string;
       results?: {
-        overall_risk_score?: number;
-        reading_fluency_score?: number;
-        phonological_awareness_score?: number;
-        attention_score?: number;
-        visual_processing_score?: number;
+        dyslexia_probability_index?: number;
+        adhd_probability_index?: number;
+        dysgraphia_probability_index?: number;
+        overall_risk_level?: 'low' | 'moderate' | 'high';
       };
     }) => {
       if (!user) throw new Error('Not authenticated');
 
-      // Validate input data
-      z.string().uuid('Invalid assessment ID').parse(input.assessment_id);
+      // Validate session ID
+      z.string().min(1, 'Session ID required').parse(input.session_id);
       
       const validatedResults = input.results 
-        ? assessmentResultsSchema.parse(input.results)
+        ? diagnosticResultSchema.parse(input.results)
         : {};
 
       const { data, error } = await supabase
-        .from('assessment_results')
+        .from('diagnostic_results')
         .insert({
-          assessment_id: input.assessment_id,
+          clinician_id: user.id,
+          user_id: input.student_id ? null : user.id, // self-assessment if no student
+          student_id: input.student_id || null,
+          session_id: input.session_id,
           ...validatedResults,
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data as AssessmentResult;
+      return data as DiagnosticResultRow;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assessment_results'] });
+      queryClient.invalidateQueries({ queryKey: ['diagnostic_results'] });
     },
     onError: (error) => {
       if (error instanceof z.ZodError) {
         toast.error('Validation error: ' + error.errors.map(e => e.message).join(', '));
       } else {
-        toast.error('Failed to create assessment result: ' + error.message);
+        toast.error('Failed to create assessment: ' + error.message);
       }
     },
   });
@@ -106,29 +102,25 @@ export function useAssessments() {
     isLoading: assessmentsQuery.isLoading,
     isError: assessmentsQuery.isError,
     error: assessmentsQuery.error,
-    createAssessmentResult,
+    createDiagnosticResult,
     refetch: assessmentsQuery.refetch
   };
 }
 
 export function useAssessmentResults(studentId?: string) {
   return useQuery({
-    queryKey: ['assessment_results', 'student', studentId],
+    queryKey: ['diagnostic_results', 'student', studentId],
     queryFn: async () => {
       if (!studentId) return null;
       
-      // Get assessment results via the assessments table relationship
       const { data, error } = await supabase
-        .from('assessment_results')
-        .select(`
-          *,
-          assessments!inner (student_id)
-        `)
-        .eq('assessments.student_id', studentId)
+        .from('diagnostic_results')
+        .select('*')
+        .eq('student_id', studentId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data ?? []) as AssessmentResult[];
+      return (data ?? []) as DiagnosticResultRow[];
     },
     enabled: !!studentId,
   });
