@@ -15,6 +15,35 @@ interface EmailRequest {
   studentName?: string;
 }
 
+// Simple in-memory rate limiting (resets on function cold start)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10; // max emails per window
+const RATE_WINDOW_MS = 60000; // 1 minute window
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const userLimit = rateLimitMap.get(userId);
+  
+  if (!userLimit || now > userLimit.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_WINDOW_MS });
+    return false;
+  }
+  
+  if (userLimit.count >= RATE_LIMIT) {
+    return true;
+  }
+  
+  userLimit.count++;
+  return false;
+}
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(email: string): boolean {
+  return typeof email === 'string' && email.length <= 254 && EMAIL_REGEX.test(email);
+}
+
 // Create JWT for Google API authentication
 async function createGoogleJWT(serviceAccountKey: string): Promise<string> {
   const keyData = JSON.parse(serviceAccountKey);
@@ -133,6 +162,12 @@ async function sendGmailEmail(
 
 // Email templates
 function getAssessmentReportTemplate(studentName: string, data: any): string {
+  // Sanitize student name to prevent XSS
+  const safeName = studentName.replace(/[<>&"']/g, (c) => {
+    const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+    return entities[c] || c;
+  });
+  
   return `
     <!DOCTYPE html>
     <html>
@@ -157,7 +192,7 @@ function getAssessmentReportTemplate(studentName: string, data: any): string {
       <div class="container">
         <div class="header">
           <h1>🧠 Neuro-Read X Assessment Report</h1>
-          <p style="margin: 10px 0 0; opacity: 0.9;">Screening results for ${studentName}</p>
+          <p style="margin: 10px 0 0; opacity: 0.9;">Screening results for ${safeName}</p>
         </div>
         <div class="content">
           <h2 style="color: #333; margin-top: 0;">Assessment Summary</h2>
@@ -210,6 +245,12 @@ function getAssessmentReportTemplate(studentName: string, data: any): string {
 }
 
 function getWelcomeTemplate(userName: string): string {
+  // Sanitize user name to prevent XSS
+  const safeName = userName.replace(/[<>&"']/g, (c) => {
+    const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+    return entities[c] || c;
+  });
+  
   return `
     <!DOCTYPE html>
     <html>
@@ -229,7 +270,7 @@ function getWelcomeTemplate(userName: string): string {
           <h1 style="margin: 0; font-size: 28px;">🎉 Welcome to Neuro-Read X!</h1>
         </div>
         <div class="content">
-          <h2 style="color: #333;">Hello ${userName}!</h2>
+          <h2 style="color: #333;">Hello ${safeName}!</h2>
           <p style="color: #666; line-height: 1.6;">
             Welcome to Neuro-Read X, your AI-powered platform for learning difference screening and assessment.
           </p>
@@ -260,6 +301,39 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // 1. Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Create authenticated Supabase client
+    const supabaseAuth = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Verify the user's token
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // 2. Check rate limiting
+    if (isRateLimited(user.id)) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please wait before sending more emails.' }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
     const senderEmail = Deno.env.get("GMAIL_SENDER_EMAIL");
     
@@ -269,28 +343,31 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { to, subject, html, type, assessmentId, studentName }: EmailRequest = await req.json();
 
-    if (!to) {
-      throw new Error("Recipient email is required");
+    // 3. Validate recipient email
+    if (!to || !isValidEmail(to)) {
+      return new Response(
+        JSON.stringify({ error: 'Valid recipient email is required' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     let emailHtml = html;
     let emailSubject = subject;
 
-    // Handle specific email types
+    // Handle specific email types with authorization checks
     if (type === 'assessment_report' && assessmentId) {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-
-      const { data: assessment, error } = await supabase
+      // 4. Verify the user owns this assessment (use authenticated client - RLS enforced)
+      const { data: assessment, error } = await supabaseAuth
         .from("diagnostic_results")
         .select("*")
         .eq("id", assessmentId)
         .single();
 
-      if (error) {
-        throw new Error(`Failed to fetch assessment: ${error.message}`);
+      if (error || !assessment) {
+        return new Response(
+          JSON.stringify({ error: 'Assessment not found or you do not have permission to access it' }),
+          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
       }
 
       emailHtml = getAssessmentReportTemplate(studentName || "Student", assessment);
@@ -298,17 +375,19 @@ const handler = async (req: Request): Promise<Response> => {
     } else if (type === 'welcome') {
       emailHtml = getWelcomeTemplate(studentName || "User");
       emailSubject = "Welcome to Neuro-Read X! 🧠";
-    }
-
-    if (!emailHtml) {
-      throw new Error("Email content is required");
+    } else if (!emailHtml) {
+      // For custom emails, require HTML content
+      return new Response(
+        JSON.stringify({ error: 'Email content is required for custom emails' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     // Get access token and send email
     const accessToken = await getGoogleAccessToken(serviceAccountKey);
     await sendGmailEmail(accessToken, senderEmail, to, emailSubject || "Neuro-Read X Notification", emailHtml);
 
-    console.log(`Email sent successfully to ${to}`);
+    console.log(`Email sent successfully to ${to} by user ${user.id}`);
 
     return new Response(
       JSON.stringify({ success: true, message: "Email sent successfully" }),
@@ -317,7 +396,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error sending email:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to send email. Please try again later." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

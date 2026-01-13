@@ -45,13 +45,12 @@ export function useUserRole() {
     mutationFn: async (role: AppRole) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Insert role directly - RLS allows users to insert their own roles
-      const { error } = await supabase
-        .from('user_roles')
-        .insert([{ user_id: user.id, role }]);
+      // Use the SECURITY DEFINER RPC function for secure role assignment
+      // This prevents privilege escalation by enforcing server-side validation
+      const { error } = await supabase.rpc('set_user_role', { _role: role });
       
       if (error) {
-        if (error.message.includes('duplicate') || error.code === '23505') {
+        if (error.message.includes('already set') || error.message.includes('duplicate') || error.code === '23505') {
           throw new Error('Your role has already been set. Contact support to change it.');
         }
         throw error;
