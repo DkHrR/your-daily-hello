@@ -18,10 +18,9 @@ export function LiveCounter({ className = '' }: LiveCounterProps) {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        // Count diagnostic_results directly
-        const { count: totalCount, error } = await supabase
-          .from('diagnostic_results')
-          .select('*', { count: 'exact', head: true });
+        // Type assertion needed as function was added after types were generated
+        const { data: totalCount, error } = await supabase
+          .rpc('get_assessment_count' as never) as { data: number | null; error: Error | null };
         
         if (!error && totalCount !== null) {
           setCount(totalCount);
