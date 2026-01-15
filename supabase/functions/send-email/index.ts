@@ -451,7 +451,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (assessmentId) {
         // Verify the user owns this assessment
         const { data: assessment, error } = await supabaseAuth
-          .from("assessment_results")
+          .from("diagnostic_results")
           .select("*")
           .eq("id", assessmentId)
           .single();
