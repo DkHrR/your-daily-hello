@@ -389,6 +389,7 @@ export type Database = {
           email: string | null
           email_preferences: Json | null
           email_verified: boolean | null
+          eye_tracking_settings: Json | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -404,6 +405,7 @@ export type Database = {
           email?: string | null
           email_preferences?: Json | null
           email_verified?: boolean | null
+          eye_tracking_settings?: Json | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -419,6 +421,7 @@ export type Database = {
           email?: string | null
           email_preferences?: Json | null
           email_verified?: boolean | null
+          eye_tracking_settings?: Json | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -483,6 +486,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      verification_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          user_agent: string | null
+          user_id: string
+          verified_by: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id: string
+          verified_by?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id?: string
+          verified_by?: string | null
         }
         Relationships: []
       }
