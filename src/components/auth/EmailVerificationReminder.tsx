@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Mail, X, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useSmtpVerification } from '@/hooks/useSmtpVerification';
 
 interface EmailVerificationReminderProps {
   email: string;
@@ -11,27 +10,11 @@ interface EmailVerificationReminderProps {
 }
 
 export function EmailVerificationReminder({ email, onDismiss }: EmailVerificationReminderProps) {
-  const [isResending, setIsResending] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const { isSending, resendVerificationEmail } = useSmtpVerification();
 
   const handleResend = async () => {
-    setIsResending(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth`
-        }
-      });
-
-      if (error) throw error;
-      toast.success('Confirmation email resent! Please check your inbox.');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to resend confirmation email');
-    } finally {
-      setIsResending(false);
-    }
+    await resendVerificationEmail(email);
   };
 
   const handleDismiss = () => {
@@ -56,10 +39,10 @@ export function EmailVerificationReminder({ email, onDismiss }: EmailVerificatio
             size="sm"
             variant="outline"
             onClick={handleResend}
-            disabled={isResending}
+            disabled={isSending}
             className="border-amber-500/50 hover:bg-amber-500/10"
           >
-            {isResending ? (
+            {isSending ? (
               <>
                 <Loader2 className="w-3 h-3 animate-spin mr-1" />
                 Resending...
