@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,39 +14,24 @@ import { Brain, Mail, Lock, User, Loader2, ArrowLeft, CheckCircle2, RefreshCw } 
 import { useUserRole, UI_ROLE_TO_DB_ROLE, type AppRole } from '@/hooks/useUserRole';
 import { logger } from '@/lib/logger';
 import { useEmailService } from '@/hooks/useEmailService';
-import { supabase } from '@/integrations/supabase/client';
+import { useSmtpVerification } from '@/hooks/useSmtpVerification';
 
-// Resend confirmation email button component
-function ResendConfirmationButton({ email }: { email: string }) {
-  const [isResending, setIsResending] = useState(false);
+// Resend confirmation email button component using SMTP
+function ResendConfirmationButton({ email, userName }: { email: string; userName?: string }) {
+  const { resendVerificationEmail, isSending } = useSmtpVerification();
   
   const handleResend = async () => {
-    setIsResending(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth`
-        }
-      });
-      if (error) throw error;
-      toast.success('Confirmation email resent! Check your inbox.');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to resend email');
-    } finally {
-      setIsResending(false);
-    }
+    await resendVerificationEmail(email, userName);
   };
   
   return (
     <Button
       variant="default"
       onClick={handleResend}
-      disabled={isResending}
+      disabled={isSending}
       className="w-full"
     >
-      {isResending ? (
+      {isSending ? (
         <>
           <Loader2 className="w-4 h-4 animate-spin mr-2" />
           Resending...
@@ -73,9 +58,11 @@ type UserRole = 'individual' | 'school' | 'pediatrician';
 
 export default function AuthPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, signIn, signUp, signInWithGoogle, resetPassword, loading, profile } = useAuth();
   const { hasAnyRole, setRole, isSettingRole, isLoading: isRoleLoading } = useUserRole();
   const { sendWelcomeEmail } = useEmailService();
+  const { sendVerificationEmail, verifyToken, isVerifying } = useSmtpVerification();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
@@ -84,10 +71,35 @@ export default function AuthPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [pendingEmailConfirmation, setPendingEmailConfirmation] = useState('');
+  const [pendingUserName, setPendingUserName] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [pendingUser, setPendingUser] = useState<{ id: string; email: string; name: string } | null>(null);
   const welcomeEmailSentRef = useRef(false);
+  const verificationCheckedRef = useRef(false);
+
+  // Handle email verification from URL token
+  useEffect(() => {
+    const verifyTokenParam = searchParams.get('verify');
+    const emailParam = searchParams.get('email');
+    
+    if (verifyTokenParam && emailParam && !verificationCheckedRef.current) {
+      verificationCheckedRef.current = true;
+      
+      // Verify the token via SMTP service
+      verifyToken(verifyTokenParam, emailParam).then((success) => {
+        // Clear URL params after verification attempt
+        searchParams.delete('verify');
+        searchParams.delete('email');
+        setSearchParams(searchParams, { replace: true });
+        
+        if (success) {
+          toast.success('Email verified! You can now sign in.');
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (user && !loading && !isRoleLoading) {
@@ -211,17 +223,21 @@ export default function AuthPage() {
     
     setIsSubmitting(true);
     const { error } = await signUp(email, password, fullName);
-    setIsSubmitting(false);
     
     if (error) {
+      setIsSubmitting(false);
       // Use generic error message to prevent account enumeration
       logger.error('Sign up failed', error);
       toast.error('Unable to create account. Please try again or use a different email.');
     } else {
+      // Send verification email via SMTP
+      await sendVerificationEmail(email, fullName);
+      setIsSubmitting(false);
+      
       // Show email confirmation screen
       setShowEmailConfirmation(true);
       setPendingEmailConfirmation(email);
-      toast.success('Confirmation email sent! Please check your inbox.');
+      setPendingUserName(fullName);
     }
   };
 
@@ -309,13 +325,14 @@ export default function AuthPage() {
                       <span>Confirmation email sent</span>
                     </div>
                     
-                    <ResendConfirmationButton email={pendingEmailConfirmation} />
+                    <ResendConfirmationButton email={pendingEmailConfirmation} userName={pendingUserName} />
                     
                     <Button
                       variant="outline"
                       onClick={() => {
                         setShowEmailConfirmation(false);
                         setPendingEmailConfirmation('');
+                        setPendingUserName('');
                       }}
                       className="w-full"
                     >
